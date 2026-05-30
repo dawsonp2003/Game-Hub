@@ -1,19 +1,44 @@
 import type { ConnectionState, MultiplayerSession, SessionRole } from './session'
 import { SignalingClient } from './signaling'
 
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-]
+function buildIceServers(): RTCIceServer[] {
+  const servers: RTCIceServer[] = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ]
+
+  const turnUrl = import.meta.env.VITE_TURN_URL?.trim()
+  const turnUser = import.meta.env.VITE_TURN_USERNAME?.trim()
+  const turnCred = import.meta.env.VITE_TURN_CREDENTIAL?.trim()
+  if (turnUrl && turnUser && turnCred) {
+    servers.push({ urls: turnUrl, username: turnUser, credential: turnCred })
+  }
+
+  // Public relay fallback — helps when both peers are behind strict NAT / mobile networks.
+  servers.push(
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+  )
+
+  return servers
+}
+
+const ICE_SERVERS = buildIceServers()
 
 const STORAGE_KEY = 'game-arcade-client-id'
 const ROOM_STORAGE_KEY = 'game-arcade-room'
 
 export function getClientId(): string {
-  let id = localStorage.getItem(STORAGE_KEY)
+  // sessionStorage = one ID per tab (localStorage breaks two-tab testing on the same browser)
+  let id = sessionStorage.getItem(STORAGE_KEY)
   if (!id) {
     id = crypto.randomUUID()
-    localStorage.setItem(STORAGE_KEY, id)
+    sessionStorage.setItem(STORAGE_KEY, id)
   }
   return id
 }
@@ -56,6 +81,7 @@ export class RoomConnection {
   private makingOffer = false
   private signalingWired = false
   private connectTimeoutId: ReturnType<typeof setTimeout> | null = null
+  private pendingCandidates: RTCIceCandidateInit[] = []
 
   readonly session: MultiplayerSession
 
@@ -109,6 +135,32 @@ export class RoomConnection {
     this.pc?.close()
     this.channel = null
     this.pc = null
+    this.pendingCandidates = []
+  }
+
+  private async flushPendingCandidates(): Promise<void> {
+    if (!this.pc?.remoteDescription) return
+    const pending = this.pendingCandidates.splice(0)
+    for (const candidate of pending) {
+      try {
+        await this.pc.addIceCandidate(candidate)
+      } catch {
+        /* stale candidate */
+      }
+    }
+  }
+
+  private async addRemoteCandidate(candidate: RTCIceCandidateInit): Promise<void> {
+    if (!this.pc) return
+    if (!this.pc.remoteDescription) {
+      this.pendingCandidates.push(candidate)
+      return
+    }
+    try {
+      await this.pc.addIceCandidate(candidate)
+    } catch {
+      /* stale candidate */
+    }
   }
 
   private setupChannel(dc: RTCDataChannel): void {
@@ -143,6 +195,15 @@ export class RoomConnection {
         this.signaling.send({ type: 'signal', payload: { candidate: e.candidate } })
       }
     }
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'failed') {
+        this.emit({
+          type: 'error',
+          message:
+            'Could not establish a direct connection between devices. Try a different network (e.g. turn off VPN), use two separate browsers/devices, or wait a moment and rejoin.',
+        })
+      }
+    }
     pc.ondatachannel = (e) => this.setupChannel(e.channel)
     this.pc = pc
     return pc
@@ -172,6 +233,7 @@ export class RoomConnection {
 
       if (msg.payload.sdp) {
         await this.pc.setRemoteDescription(msg.payload.sdp)
+        await this.flushPendingCandidates()
         if (msg.payload.sdp.type === 'offer' && this.role === 'guest') {
           const answer = await this.pc.createAnswer()
           await this.pc.setLocalDescription(answer)
@@ -179,11 +241,7 @@ export class RoomConnection {
         }
       }
       if (msg.payload.candidate) {
-        try {
-          await this.pc.addIceCandidate(msg.payload.candidate)
-        } catch {
-          /* stale candidate */
-        }
+        await this.addRemoteCandidate(msg.payload.candidate)
       }
     })
 
@@ -247,7 +305,7 @@ export class RoomConnection {
         this.emit({
           type: 'error',
           message:
-            'Peer connection timed out. Try leaving and rejoining the room, or check that both devices are online.',
+            'Peer connection timed out. Signaling worked but the direct link never opened — try two separate browsers or devices (not two tabs in the same browser), disable VPN/ad blockers, or switch networks.',
         })
       }
     }, 45_000)
