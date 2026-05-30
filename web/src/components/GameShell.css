@@ -42,3 +42,12 @@
   color: var(--text-muted);
   padding: 2rem;
 }
+
+.game-shell__room-banner {
+  padding: 0.625rem 1rem;
+  background: rgba(108, 92, 231, 0.2);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
+  text-align: center;
+  color: var(--text-muted);
+}

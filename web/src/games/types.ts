@@ -11,6 +11,7 @@ export type GameStatus = 'live' | 'wip'
 export interface GameProps {
   mode: GameMode
   session: MultiplayerSession | null
+  peerAway?: boolean
   onExit: () => void
 }
 

@@ -1,0 +1,320 @@
+import type { ConnectionState, MultiplayerSession, SessionRole } from './session'
+import { SignalingClient } from './signaling'
+
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+]
+
+const STORAGE_KEY = 'game-arcade-client-id'
+const ROOM_STORAGE_KEY = 'game-arcade-room'
+
+export function getClientId(): string {
+  let id = localStorage.getItem(STORAGE_KEY)
+  if (!id) {
+    id = crypto.randomUUID()
+    localStorage.setItem(STORAGE_KEY, id)
+  }
+  return id
+}
+
+export function saveRoomPrefs(code: string, role: SessionRole): void {
+  sessionStorage.setItem(ROOM_STORAGE_KEY, JSON.stringify({ code, role }))
+}
+
+export function loadRoomPrefs(): { code: string; role: SessionRole } | null {
+  try {
+    const raw = sessionStorage.getItem(ROOM_STORAGE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as { code: string; role: SessionRole }
+  } catch {
+    return null
+  }
+}
+
+export function clearRoomPrefs(): void {
+  sessionStorage.removeItem(ROOM_STORAGE_KEY)
+}
+
+export type RoomEvent =
+  | { type: 'state'; state: ConnectionState; message: string }
+  | { type: 'room-code'; code: string; role: SessionRole }
+  | { type: 'peer-away'; until: number }
+  | { type: 'peer-back' }
+  | { type: 'room-closed'; reason: string }
+  | { type: 'error'; message: string }
+
+export class RoomConnection {
+  private signaling = new SignalingClient()
+  private handlers = new Set<(message: unknown) => void>()
+  private connectionHandlers = new Set<(state: ConnectionState) => void>()
+  private eventHandlers = new Set<(event: RoomEvent) => void>()
+  private pc: RTCPeerConnection | null = null
+  private channel: RTCDataChannel | null = null
+  private role: SessionRole = 'host'
+  private connectionState: ConnectionState = 'disconnected'
+  private makingOffer = false
+
+  readonly session: MultiplayerSession
+
+  constructor() {
+    this.session = {
+      role: 'host',
+      connectionState: 'disconnected',
+      isConnected: false,
+      send: (msg) => this.send(msg),
+      onMessage: (h) => this.onMessage(h),
+      onConnectionChange: (h) => this.onConnectionChange(h),
+      disconnect: () => this.destroy(),
+    }
+  }
+
+  onEvent(handler: (event: RoomEvent) => void): () => void {
+    this.eventHandlers.add(handler)
+    return () => this.eventHandlers.delete(handler)
+  }
+
+  private emit(event: RoomEvent): void {
+    this.eventHandlers.forEach((h) => h(event))
+  }
+
+  private setState(state: ConnectionState, message: string): void {
+    this.connectionState = state
+    this.session.connectionState = state
+    this.session.isConnected = state === 'connected'
+    this.connectionHandlers.forEach((h) => h(state))
+    this.emit({ type: 'state', state, message })
+  }
+
+  private onMessage(handler: (message: unknown) => void): () => void {
+    this.handlers.add(handler)
+    return () => this.handlers.delete(handler)
+  }
+
+  private onConnectionChange(handler: (state: ConnectionState) => void): () => void {
+    this.connectionHandlers.add(handler)
+    return () => this.connectionHandlers.delete(handler)
+  }
+
+  private send(message: unknown): void {
+    if (this.channel?.readyState === 'open') {
+      this.channel.send(JSON.stringify(message))
+    }
+  }
+
+  private closeWebRTC(): void {
+    this.channel?.close()
+    this.pc?.close()
+    this.channel = null
+    this.pc = null
+  }
+
+  private setupChannel(dc: RTCDataChannel): void {
+    this.channel = dc
+    dc.onopen = () => this.setState('connected', 'Connected — pick a game to play together!')
+    dc.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data as string)
+        this.handlers.forEach((h) => h(msg))
+      } catch {
+        this.handlers.forEach((h) => h(e.data))
+      }
+    }
+    dc.onclose = () => {
+      if (this.connectionState === 'connected') {
+        this.setState('peer-away', 'Connection paused — waiting for friend…')
+      }
+    }
+  }
+
+  private createPeer(): RTCPeerConnection {
+    this.closeWebRTC()
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        this.signaling.send({ type: 'signal', payload: { candidate: e.candidate } })
+      }
+    }
+    pc.ondatachannel = (e) => this.setupChannel(e.channel)
+    this.pc = pc
+    return pc
+  }
+
+  private async createOffer(): Promise<void> {
+    if (!this.pc || this.role !== 'host' || this.makingOffer) return
+    this.makingOffer = true
+    try {
+      const offer = await this.pc.createOffer()
+      await this.pc.setLocalDescription(offer)
+      this.signaling.send({ type: 'signal', payload: { sdp: offer } })
+    } finally {
+      this.makingOffer = false
+    }
+  }
+
+  private wireSignaling(): void {
+    this.signaling.on('signal', async (data) => {
+      const msg = data as {
+        payload?: { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit }
+      }
+      if (!this.pc || !msg.payload) return
+
+      if (msg.payload.sdp) {
+        await this.pc.setRemoteDescription(msg.payload.sdp)
+        if (msg.payload.sdp.type === 'offer' && this.role === 'guest') {
+          const answer = await this.pc.createAnswer()
+          await this.pc.setLocalDescription(answer)
+          this.signaling.send({ type: 'signal', payload: { sdp: answer } })
+        }
+      }
+      if (msg.payload.candidate) {
+        try {
+          await this.pc.addIceCandidate(msg.payload.candidate)
+        } catch {
+          /* stale candidate */
+        }
+      }
+    })
+
+    this.signaling.on('peer-joined', async () => {
+      this.setState('signaling', 'Friend joined — connecting…')
+      await this.startWebRTCAsHost()
+    })
+
+    this.signaling.on('peer-rejoined', async () => {
+      this.setState('signaling', 'Friend reconnected — connecting…')
+      this.emit({ type: 'peer-back' })
+      if (this.role === 'host') await this.startWebRTCAsHost()
+    })
+
+    this.signaling.on('peer-present', async () => {
+      this.setState('signaling', 'Friend is in the room — connecting…')
+      if (this.role === 'host') await this.startWebRTCAsHost()
+      else await this.startWebRTCAsGuest()
+    })
+
+    this.signaling.on('peer-disconnected', (data) => {
+      const msg = data as { role: string; reconnectUntil: number }
+      this.closeWebRTC()
+      this.setState('peer-away', `Friend stepped away — can rejoin for ${Math.round((msg.reconnectUntil - Date.now()) / 1000)}s`)
+      this.emit({ type: 'peer-away', until: msg.reconnectUntil })
+    })
+
+    this.signaling.on('room-closed', (data) => {
+      const msg = data as { reason: string }
+      this.emit({ type: 'room-closed', reason: msg.reason })
+      this.destroy()
+    })
+
+    this.signaling.on('left-room', () => {
+      this.destroy()
+    })
+
+    this.signaling.on('error', (data) => {
+      const msg = data as { message?: string }
+      this.emit({ type: 'error', message: msg.message ?? 'Room error' })
+    })
+  }
+
+  private async startWebRTCAsHost(): Promise<void> {
+    const pc = this.pc ?? this.createPeer()
+    if (!this.channel) {
+      const ch = pc.createDataChannel('game', { ordered: true })
+      this.setupChannel(ch)
+    }
+    await this.createOffer()
+  }
+
+  private async startWebRTCAsGuest(): Promise<void> {
+    if (!this.pc) this.createPeer()
+  }
+
+  async createRoom(): Promise<void> {
+    await this.connectSignaling()
+    this.role = 'host'
+    this.session.role = 'host'
+    this.wireSignaling()
+
+    this.setState('signaling', 'Creating room…')
+    this.signaling.send({ type: 'create-room', clientId: getClientId() })
+
+    this.signaling.on('room-created', (data) => {
+      const { code } = data as { code: string; role: SessionRole }
+      saveRoomPrefs(code, 'host')
+      this.setState('waiting', `Room ${code} — share this code with a friend`)
+      this.emit({ type: 'room-code', code, role: 'host' })
+    })
+  }
+
+  async joinRoom(code: string): Promise<void> {
+    const normalized = code.replace(/\D/g, '').slice(0, 6)
+    if (normalized.length !== 6) throw new Error('Enter a 6-digit room code')
+
+    await this.connectSignaling()
+    this.role = 'guest'
+    this.session.role = 'guest'
+    this.wireSignaling()
+
+    this.setState('signaling', 'Joining room…')
+    this.signaling.send({ type: 'join-room', code: normalized, clientId: getClientId() })
+
+    this.signaling.on('room-joined', (data) => {
+      const msg = data as { code: string; role: SessionRole; rejoin?: boolean }
+      this.role = msg.role
+      this.session.role = msg.role
+      saveRoomPrefs(msg.code, msg.role)
+
+      if (msg.role === 'host') {
+        this.setState('waiting', `Rejoined room ${msg.code}`)
+      } else {
+        this.setState('signaling', 'In room — connecting to host…')
+        this.startWebRTCAsGuest()
+      }
+      this.emit({ type: 'room-code', code: msg.code, role: msg.role })
+    })
+  }
+
+  async tryRestoreRoom(): Promise<boolean> {
+    const prefs = loadRoomPrefs()
+    if (!prefs) return false
+
+    try {
+      await this.joinRoom(prefs.code)
+      return true
+    } catch {
+      clearRoomPrefs()
+      return false
+    }
+  }
+
+  leaveRoom(): void {
+    if (this.signaling) {
+      this.signaling.send({ type: 'leave-room', clientId: getClientId() })
+    }
+    this.destroy()
+  }
+
+  closeRoom(): void {
+    if (this.role === 'host') {
+      this.signaling.send({ type: 'close-room', clientId: getClientId() })
+    }
+    this.destroy()
+  }
+
+  private async connectSignaling(): Promise<void> {
+    this.setState('signaling', 'Connecting to server…')
+    await this.signaling.connect()
+  }
+
+  destroy(): void {
+    this.closeWebRTC()
+    this.signaling.disconnect()
+    this.handlers.clear()
+    this.connectionHandlers.clear()
+    clearRoomPrefs()
+    if (this.eventHandlers.size > 0) {
+      this.setState('disconnected', '')
+    }
+    this.eventHandlers.clear()
+  }
+}

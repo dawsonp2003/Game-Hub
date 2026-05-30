@@ -85,12 +85,16 @@ export async function checkSignalingHealth(): Promise<{
 }
 
 export type SignalingMessage =
-  | { type: 'room-created'; code: string }
-  | { type: 'room-joined' }
-  | { type: 'peer-joined' }
+  | { type: 'room-created'; code: string; role: string }
+  | { type: 'room-joined'; code: string; role: string; rejoin?: boolean }
+  | { type: 'peer-joined'; role: string }
+  | { type: 'peer-rejoined'; role: string }
+  | { type: 'peer-present'; role: string }
+  | { type: 'peer-disconnected'; role: string; reconnectUntil: number }
+  | { type: 'room-closed'; reason: string }
+  | { type: 'left-room' }
   | { type: 'signal'; payload: unknown }
   | { type: 'error'; message: string }
-  | { type: 'peer-left' }
 
 export class SignalingClient {
   private ws: WebSocket | null = null

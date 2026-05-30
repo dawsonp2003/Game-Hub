@@ -3,6 +3,7 @@ import type { GameCategory } from '../games/types'
 import { CATEGORY_LABELS } from '../games/types'
 import { getLiveGames } from '../games/registry'
 import GameCard from './GameCard'
+import RoomPanel from './RoomPanel'
 import './MenuGrid.css'
 
 const ALL = 'all' as const
@@ -26,8 +27,10 @@ export default function MenuGrid() {
     <div className="menu-grid">
       <header className="menu-grid__header">
         <h1 className="menu-grid__title">Game Arcade</h1>
-        <p className="menu-grid__subtitle">Pick a game to play</p>
+        <p className="menu-grid__subtitle">Join a room, then pick a game</p>
       </header>
+
+      <RoomPanel />
 
       <div className="menu-grid__filters" role="tablist">
         <button

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRoom } from '../../context/RoomContext'
 import type { GameProps } from '../types'
 import { stats } from '../../lib/stats'
 import './TicTacToe.css'
@@ -70,7 +71,8 @@ interface MoveMessage {
   player: Player
 }
 
-export default function TicTacToe({ mode, session, onExit }: GameProps) {
+export default function TicTacToe({ mode, session, peerAway = false, onExit }: GameProps) {
+  const room = useRoom()
   const [board, setBoard] = useState<Cell[]>(Array(9).fill(null))
   const [current, setCurrent] = useState<Player>('X')
   const [winner, setWinner] = useState<Player | 'draw' | null>(null)
@@ -86,14 +88,15 @@ export default function TicTacToe({ mode, session, onExit }: GameProps) {
 
   const canPlay = useCallback(() => {
     if (winner) return false
+    if (peerAway || room.status === 'peer-away') return false
     if (isRemote) {
-      if (!session?.isConnected) return false
+      if (!room.isPlayReady) return false
       const turn = current === 'X' ? 'host' : 'guest'
-      return session.role === turn
+      return session?.role === turn
     }
     if (isAI && current === 'O') return false
     return true
-  }, [winner, isRemote, isAI, session, current])
+  }, [winner, peerAway, room.status, room.isPlayReady, isRemote, isAI, session, current])
 
   const applyMove = useCallback(
     (index: number, player: Player) => {
@@ -184,7 +187,10 @@ export default function TicTacToe({ mode, session, onExit }: GameProps) {
       }
       return `${winner} wins!`
     }
-    if (isRemote && !session?.isConnected) return 'Connecting…'
+    if (peerAway || room.status === 'peer-away') {
+      return 'Friend stepped away — board preserved. They can rejoin from the menu.'
+    }
+    if (isRemote && !room.isPlayReady) return 'Connecting…'
     if (isRemote) {
       const yourTurn =
         (current === 'X' && session?.role === 'host') ||
