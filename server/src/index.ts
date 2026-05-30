@@ -1,5 +1,5 @@
-import { createServer } from 'http'
-import { WebSocketServer, type WebSocket } from 'ws'
+import { createServer, type IncomingMessage, type ServerResponse } from 'http'
+import { WebSocketServer, type RawData, type WebSocket } from 'ws'
 
 const PORT = Number(process.env.PORT) || 3001
 const ROOM_TTL_MS = 30 * 60 * 1000
@@ -39,7 +39,7 @@ function cleanupRoom(code: string): void {
 function attachClient(ws: WebSocket): void {
   let roomCode: string | null = null
 
-  ws.on('message', (raw) => {
+  ws.on('message', (raw: RawData) => {
     let msg: { type: string; code?: string; payload?: unknown }
     try {
       msg = JSON.parse(raw.toString()) as { type: string; code?: string; payload?: unknown }
@@ -107,7 +107,7 @@ function attachClient(ws: WebSocket): void {
   })
 }
 
-const httpServer = createServer((_req, res) => {
+const httpServer = createServer((_req: IncomingMessage, res: ServerResponse) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' })
   res.end('Game Arcade signaling server\n')
 })
