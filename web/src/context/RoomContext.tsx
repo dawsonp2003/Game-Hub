@@ -13,7 +13,9 @@ import { getGameById } from '../games/registry'
 import type { GameLaunch, GameSuggestion } from '../lib/multiplayer/room-messages'
 import { isRoomChannelMessage } from '../lib/multiplayer/room-messages'
 import type { ConnectionState, MultiplayerSession, SessionRole } from '../lib/multiplayer/session'
-import { RoomConnection } from '../lib/multiplayer/room'
+import { RoomConnection, type RoomEvent } from '../lib/multiplayer/room'
+
+export type RoomPendingAction = 'create' | 'join' | 'restore' | null
 
 export interface RoomContextValue {
   status: ConnectionState
@@ -22,6 +24,7 @@ export interface RoomContextValue {
   statusMessage: string
   error: string | null
   loading: boolean
+  pendingAction: RoomPendingAction
   peerAwayUntil: number | null
   session: MultiplayerSession | null
   isInRoom: boolean
@@ -58,6 +61,7 @@ function RoomNavigator() {
 export function RoomProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const connectionRef = useRef<RoomConnection | null>(null)
+  const eventUnsubRef = useRef<(() => void) | null>(null)
   const roleRef = useRef<SessionRole | null>(null)
   const [status, setStatus] = useState<ConnectionState>('disconnected')
   const [role, setRole] = useState<SessionRole | null>(null)
@@ -65,6 +69,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   const [statusMessage, setStatusMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [pendingAction, setPendingAction] = useState<RoomPendingAction>(null)
   const [peerAwayUntil, setPeerAwayUntil] = useState<number | null>(null)
   const [session, setSession] = useState<MultiplayerSession | null>(null)
   const [suggestion, setSuggestion] = useState<GameSuggestion | null>(null)
@@ -73,12 +78,63 @@ export function RoomProvider({ children }: { children: ReactNode }) {
 
   roleRef.current = role
 
-  const getConnection = useCallback(() => {
-    if (!connectionRef.current) {
-      connectionRef.current = new RoomConnection()
+  const handleRoomEvent = useCallback((event: RoomEvent) => {
+    switch (event.type) {
+      case 'state':
+        setStatus(event.state)
+        setStatusMessage(event.message)
+        if (event.state === 'connected') setPeerAwayUntil(null)
+        break
+      case 'room-code':
+        setRoomCode(event.code)
+        setRole(event.role)
+        setError(null)
+        setLoading(false)
+        setPendingAction(null)
+        break
+      case 'peer-away':
+        setPeerAwayUntil(event.until)
+        break
+      case 'peer-back':
+        setPeerAwayUntil(null)
+        break
+      case 'room-closed':
+        setRoomCode(null)
+        setRole(null)
+        setPeerAwayUntil(null)
+        setSuggestion(null)
+        setPendingLaunch(null)
+        setLastSuggested(null)
+        setStatus('disconnected')
+        setStatusMessage('')
+        setError(event.reason === 'host-closed' ? 'Host closed the room' : 'Room closed')
+        connectionRef.current = null
+        setSession(null)
+        break
+      case 'error':
+        setError(event.message)
+        setLoading(false)
+        setPendingAction(null)
+        break
     }
-    return connectionRef.current
   }, [])
+
+  const attachConnection = useCallback(
+    (conn: RoomConnection) => {
+      eventUnsubRef.current?.()
+      connectionRef.current = conn
+      setSession(conn.session)
+      eventUnsubRef.current = conn.onEvent(handleRoomEvent)
+    },
+    [handleRoomEvent],
+  )
+
+  const replaceConnection = useCallback(() => {
+    connectionRef.current?.teardown()
+    const conn = new RoomConnection()
+    attachConnection(conn)
+    return conn
+  }, [attachConnection])
 
   useEffect(() => {
     if (!session) return
@@ -98,89 +154,63 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   }, [session])
 
   useEffect(() => {
-    const conn = getConnection()
-    setSession(conn.session)
+    const conn = replaceConnection()
 
-    const unsub = conn.onEvent((event) => {
-      switch (event.type) {
-        case 'state':
-          setStatus(event.state)
-          setStatusMessage(event.message)
-          if (event.state === 'connected') setPeerAwayUntil(null)
-          break
-        case 'room-code':
-          setRoomCode(event.code)
-          setRole(event.role)
-          setError(null)
-          break
-        case 'peer-away':
-          setPeerAwayUntil(event.until)
-          break
-        case 'peer-back':
-          setPeerAwayUntil(null)
-          break
-        case 'room-closed':
-          setRoomCode(null)
-          setRole(null)
-          setPeerAwayUntil(null)
-          setSuggestion(null)
-          setPendingLaunch(null)
-          setLastSuggested(null)
-          setStatus('disconnected')
-          setStatusMessage('')
-          setError(
-            event.reason === 'host-closed' ? 'Host closed the room' : 'Room closed',
-          )
-          connectionRef.current = null
-          setSession(null)
-          break
-        case 'error':
-          setError(event.message)
-          break
-      }
+    setPendingAction('restore')
+    setLoading(true)
+    conn.tryRestoreRoom().finally(() => {
+      setLoading(false)
+      setPendingAction(null)
     })
 
-    setLoading(true)
-    conn.tryRestoreRoom().finally(() => setLoading(false))
-
-    return () => unsub()
-  }, [getConnection])
+    return () => {
+      eventUnsubRef.current?.()
+      connectionRef.current?.teardown()
+      connectionRef.current = null
+    }
+  }, [replaceConnection])
 
   const createRoom = useCallback(async () => {
+    setPendingAction('create')
     setLoading(true)
     setError(null)
+    setStatusMessage('Connecting to server…')
     try {
-      connectionRef.current?.destroy()
-      const conn = getConnection()
-      setSession(conn.session)
+      const conn = replaceConnection()
       await conn.createRoom()
+      setStatusMessage('Creating your room…')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create room')
-    } finally {
       setLoading(false)
+      setPendingAction(null)
+      setStatusMessage('')
     }
-  }, [getConnection])
+  }, [replaceConnection])
 
   const joinRoom = useCallback(
     async (code: string) => {
+      setPendingAction('join')
       setLoading(true)
       setError(null)
+      setStatusMessage('Connecting to server…')
       try {
-        connectionRef.current?.destroy()
-        const conn = getConnection()
-        setSession(conn.session)
+        const conn = replaceConnection()
         await conn.joinRoom(code)
+        setStatusMessage(`Joining room ${code}…`)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to join room')
-      } finally {
         setLoading(false)
+        setPendingAction(null)
+        setStatusMessage('')
       }
     },
-    [getConnection],
+    [replaceConnection],
   )
 
   const leaveRoom = useCallback(() => {
     connectionRef.current?.leaveRoom()
+    eventUnsubRef.current?.()
+    eventUnsubRef.current = null
     connectionRef.current = null
     setSession(null)
     setRoomCode(null)
@@ -191,11 +221,15 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     setSuggestion(null)
     setPendingLaunch(null)
     setLastSuggested(null)
+    setPendingAction(null)
+    setLoading(false)
     setError(null)
   }, [])
 
   const closeRoom = useCallback(() => {
     connectionRef.current?.closeRoom()
+    eventUnsubRef.current?.()
+    eventUnsubRef.current = null
     connectionRef.current = null
     setSession(null)
     setRoomCode(null)
@@ -206,6 +240,8 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     setSuggestion(null)
     setPendingLaunch(null)
     setLastSuggested(null)
+    setPendingAction(null)
+    setLoading(false)
   }, [])
 
   const launchGame = useCallback(
@@ -229,8 +265,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       const game = getGameById(gameId)
       if (!game || roleRef.current !== 'guest') return
 
-      const payload = { type: 'room:suggest' as const, gameId, gameName: game.name }
-      session?.send(payload)
+      session?.send({ type: 'room:suggest', gameId, gameName: game.name })
       setLastSuggested({ gameId, gameName: game.name })
     },
     [session],
@@ -258,6 +293,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       statusMessage,
       error,
       loading,
+      pendingAction,
       peerAwayUntil,
       session,
       isInRoom: status !== 'disconnected',
@@ -282,6 +318,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       statusMessage,
       error,
       loading,
+      pendingAction,
       peerAwayUntil,
       session,
       suggestion,

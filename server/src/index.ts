@@ -191,7 +191,9 @@ function attachClient(ws: WebSocket): void {
         wsRoom.set(ws, code)
         wsClientId.set(ws, clientId!)
         send(ws, { type: 'room-joined', code, role: 'guest' })
-        send(room.host.ws!, { type: 'peer-joined', role: 'guest' })
+        if (room.host.ws) {
+          send(room.host.ws, { type: 'peer-joined', role: 'guest' })
+        }
         break
       }
 

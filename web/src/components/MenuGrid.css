@@ -26,6 +26,11 @@
   margin-bottom: 1rem;
 }
 
+.menu-grid__friend-btn--loading {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .menu-grid__room-chip {
   display: flex;
   align-items: center;

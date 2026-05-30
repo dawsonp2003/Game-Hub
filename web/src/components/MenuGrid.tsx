@@ -49,8 +49,13 @@ export default function MenuGrid() {
       )}
 
       {!room.isInRoom && !roomOpen && (
-        <button type="button" className="btn menu-grid__friend-btn" onClick={() => setRoomOpen(true)}>
-          👥 Play with a friend
+        <button
+          type="button"
+          className={`btn menu-grid__friend-btn ${room.loading && room.pendingAction !== 'restore' ? 'menu-grid__friend-btn--loading' : ''}`}
+          onClick={() => setRoomOpen(true)}
+          disabled={room.loading && room.pendingAction !== 'restore'}
+        >
+          {room.loading && room.pendingAction !== 'restore' ? 'Connecting…' : '👥 Play with a friend'}
         </button>
       )}
 

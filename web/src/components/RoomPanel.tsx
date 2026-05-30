@@ -7,6 +7,21 @@ interface RoomPanelProps {
   onClose?: () => void
 }
 
+function Spinner() {
+  return <span className="room-panel__spinner" aria-hidden="true" />
+}
+
+function progressLabel(
+  pendingAction: ReturnType<typeof useRoom>['pendingAction'],
+  statusMessage: string,
+): string {
+  if (statusMessage) return statusMessage
+  if (pendingAction === 'create') return 'Creating your room…'
+  if (pendingAction === 'join') return 'Joining room…'
+  if (pendingAction === 'restore') return 'Restoring your session…'
+  return ''
+}
+
 export default function RoomPanel({ onClose }: RoomPanelProps) {
   const room = useRoom()
   const [joinCode, setJoinCode] = useState('')
@@ -24,6 +39,9 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
     setHealth({ ok: result.ok, message: result.message })
   }
 
+  const isBusy = room.loading && room.pendingAction !== 'restore'
+  const progressText = progressLabel(room.pendingAction, room.statusMessage)
+
   if (room.isInRoom) {
     return (
       <section className="room-panel room-panel--active" aria-label="Multiplayer room">
@@ -40,9 +58,18 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
           {room.role === 'guest' && <span className="room-panel__role">Guest</span>}
         </div>
 
-        <p className={`room-panel__status room-panel__status--${room.status}`}>
-          {room.statusMessage || 'In room'}
-        </p>
+        {(room.loading || progressText) && (
+          <div className="room-panel__progress" role="status" aria-live="polite">
+            {room.loading && <Spinner />}
+            <span>{progressText}</span>
+          </div>
+        )}
+
+        {!room.loading && (
+          <p className={`room-panel__status room-panel__status--${room.status}`}>
+            {room.statusMessage || 'In room'}
+          </p>
+        )}
 
         {room.role === 'host' && room.suggestion && (
           <div className="room-panel__suggestion">
@@ -74,7 +101,7 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
           <p className="room-panel__hint">Tap a game to suggest it to the host.</p>
         )}
 
-        {room.status === 'waiting' && (
+        {room.status === 'waiting' && !room.loading && (
           <p className="room-panel__hint">Share the code above. Friends can join while you browse.</p>
         )}
 
@@ -102,9 +129,15 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
   }
 
   return (
-    <section className="room-panel" aria-label="Play with a friend">
+    <section className={`room-panel ${isBusy ? 'room-panel--busy' : ''}`} aria-label="Play with a friend">
       {onClose && (
-        <button type="button" className="room-panel__close btn-ghost" onClick={onClose} aria-label="Close">
+        <button
+          type="button"
+          className="room-panel__close btn-ghost"
+          onClick={onClose}
+          disabled={isBusy}
+          aria-label="Close"
+        >
           ×
         </button>
       )}
@@ -114,10 +147,28 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
         Create or join a room, then pick a game together. Host chooses; guests can suggest.
       </p>
 
+      {(isBusy || progressText) && (
+        <div className="room-panel__progress" role="status" aria-live="polite">
+          {isBusy && <Spinner />}
+          <span>{progressText || 'Working…'}</span>
+        </div>
+      )}
+
+      {!isBusy && !room.error && (
+        <p className="room-panel__idle-hint">Tap a button below to get started.</p>
+      )}
+
       {room.error && <p className="room-panel__error">{room.error}</p>}
 
-      <button type="button" className="btn room-panel__btn" onClick={room.createRoom} disabled={room.loading}>
-        Create room
+      <button
+        type="button"
+        className={`btn room-panel__btn ${room.pendingAction === 'create' ? 'room-panel__btn--loading' : ''}`}
+        onClick={room.createRoom}
+        disabled={room.loading}
+        aria-busy={room.pendingAction === 'create'}
+      >
+        {room.pendingAction === 'create' && <Spinner />}
+        {room.pendingAction === 'create' ? 'Creating room…' : 'Create room'}
       </button>
 
       <div className="room-panel__divider">or join with code</div>
@@ -130,15 +181,23 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
         placeholder="000000"
         value={joinCode}
         onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && joinCode.length === 6 && !room.loading) {
+            room.joinRoom(joinCode)
+          }
+        }}
+        disabled={room.loading}
         aria-label="Room code"
       />
       <button
         type="button"
-        className="btn room-panel__btn"
+        className={`btn room-panel__btn ${room.pendingAction === 'join' ? 'room-panel__btn--loading' : ''}`}
         onClick={() => room.joinRoom(joinCode)}
         disabled={room.loading || joinCode.length !== 6}
+        aria-busy={room.pendingAction === 'join'}
       >
-        Join room
+        {room.pendingAction === 'join' && <Spinner />}
+        {room.pendingAction === 'join' ? 'Joining room…' : 'Join room'}
       </button>
 
       <details className="room-panel__diag">
@@ -146,7 +205,12 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
         <p className="room-panel__diag-url">
           Server: <code>{signalingUrl}</code>
         </p>
-        <button type="button" className="btn btn-secondary room-panel__diag-btn" onClick={checkHealth}>
+        <button
+          type="button"
+          className="btn btn-secondary room-panel__diag-btn"
+          onClick={checkHealth}
+          disabled={room.loading}
+        >
           Test server
         </button>
         {health && (

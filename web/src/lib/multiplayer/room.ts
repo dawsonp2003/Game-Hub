@@ -54,6 +54,8 @@ export class RoomConnection {
   private role: SessionRole = 'host'
   private connectionState: ConnectionState = 'disconnected'
   private makingOffer = false
+  private signalingWired = false
+  private connectTimeoutId: ReturnType<typeof setTimeout> | null = null
 
   readonly session: MultiplayerSession
 
@@ -65,7 +67,7 @@ export class RoomConnection {
       send: (msg) => this.send(msg),
       onMessage: (h) => this.onMessage(h),
       onConnectionChange: (h) => this.onConnectionChange(h),
-      disconnect: () => this.destroy(),
+      disconnect: () => this.teardown(),
     }
   }
 
@@ -111,7 +113,13 @@ export class RoomConnection {
 
   private setupChannel(dc: RTCDataChannel): void {
     this.channel = dc
-    dc.onopen = () => this.setState('connected', 'Connected — pick a game to play together!')
+    dc.onopen = () => {
+      if (this.connectTimeoutId) {
+        clearTimeout(this.connectTimeoutId)
+        this.connectTimeoutId = null
+      }
+      this.setState('connected', 'Connected — pick a game to play together!')
+    }
     dc.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data as string)
@@ -153,6 +161,9 @@ export class RoomConnection {
   }
 
   private wireSignaling(): void {
+    if (this.signalingWired) return
+    this.signalingWired = true
+
     this.signaling.on('signal', async (data) => {
       const msg = data as {
         payload?: { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit }
@@ -203,11 +214,11 @@ export class RoomConnection {
     this.signaling.on('room-closed', (data) => {
       const msg = data as { reason: string }
       this.emit({ type: 'room-closed', reason: msg.reason })
-      this.destroy()
+      this.teardown()
     })
 
     this.signaling.on('left-room', () => {
-      this.destroy()
+      this.teardown()
     })
 
     this.signaling.on('error', (data) => {
@@ -217,16 +228,29 @@ export class RoomConnection {
   }
 
   private async startWebRTCAsHost(): Promise<void> {
-    const pc = this.pc ?? this.createPeer()
-    if (!this.channel) {
-      const ch = pc.createDataChannel('game', { ordered: true })
-      this.setupChannel(ch)
-    }
+    this.createPeer()
+    const ch = this.pc!.createDataChannel('game', { ordered: true })
+    this.setupChannel(ch)
+    this.armConnectTimeout()
     await this.createOffer()
   }
 
   private async startWebRTCAsGuest(): Promise<void> {
-    if (!this.pc) this.createPeer()
+    this.createPeer()
+    this.armConnectTimeout()
+  }
+
+  private armConnectTimeout(): void {
+    if (this.connectTimeoutId) clearTimeout(this.connectTimeoutId)
+    this.connectTimeoutId = setTimeout(() => {
+      if (this.connectionState !== 'connected') {
+        this.emit({
+          type: 'error',
+          message:
+            'Peer connection timed out. Try leaving and rejoining the room, or check that both devices are online.',
+        })
+      }
+    }, 45_000)
   }
 
   async createRoom(): Promise<void> {
@@ -291,14 +315,14 @@ export class RoomConnection {
     if (this.signaling) {
       this.signaling.send({ type: 'leave-room', clientId: getClientId() })
     }
-    this.destroy()
+    this.teardown()
   }
 
   closeRoom(): void {
     if (this.role === 'host') {
       this.signaling.send({ type: 'close-room', clientId: getClientId() })
     }
-    this.destroy()
+    this.teardown()
   }
 
   private async connectSignaling(): Promise<void> {
@@ -306,15 +330,28 @@ export class RoomConnection {
     await this.signaling.connect()
   }
 
-  destroy(): void {
+  /** Tear down network state but keep event listeners (for reconnecting same instance). */
+  teardown(): void {
+    if (this.connectTimeoutId) {
+      clearTimeout(this.connectTimeoutId)
+      this.connectTimeoutId = null
+    }
     this.closeWebRTC()
     this.signaling.disconnect()
+    this.signaling = new SignalingClient()
+    this.signalingWired = false
     this.handlers.clear()
     this.connectionHandlers.clear()
     clearRoomPrefs()
+    this.session.role = 'host'
+    this.role = 'host'
     if (this.eventHandlers.size > 0) {
       this.setState('disconnected', '')
     }
+  }
+
+  destroy(): void {
+    this.teardown()
     this.eventHandlers.clear()
   }
 }
