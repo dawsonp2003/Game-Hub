@@ -45,17 +45,19 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
   if (room.isInRoom) {
     return (
       <section className="room-panel room-panel--active" aria-label="Multiplayer room">
-        {onClose && (
-          <button type="button" className="room-panel__close btn-ghost" onClick={onClose} aria-label="Close">
-            ×
-          </button>
-        )}
+        <div className="room-panel__topbar">
+          {room.role === 'host' && <span className="room-panel__role">Host</span>}
+          {room.role === 'guest' && <span className="room-panel__role">Guest</span>}
+          {onClose && (
+            <button type="button" className="room-panel__close btn-ghost" onClick={onClose} aria-label="Close">
+              ×
+            </button>
+          )}
+        </div>
 
         <div className="room-panel__header">
           <span className="room-panel__badge">Room</span>
           <span className="room-panel__code">{room.roomCode}</span>
-          {room.role === 'host' && <span className="room-panel__role">Host</span>}
-          {room.role === 'guest' && <span className="room-panel__role">Guest</span>}
         </div>
 
         {(room.loading || progressText) && (
@@ -131,15 +133,11 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
   return (
     <section className={`room-panel ${isBusy ? 'room-panel--busy' : ''}`} aria-label="Play with a friend">
       {onClose && (
-        <button
-          type="button"
-          className="room-panel__close btn-ghost"
-          onClick={onClose}
-          disabled={isBusy}
-          aria-label="Close"
-        >
-          ×
-        </button>
+        <div className="room-panel__topbar room-panel__topbar--solo">
+          <button type="button" className="room-panel__close btn-ghost" onClick={onClose} disabled={isBusy} aria-label="Close">
+            ×
+          </button>
+        </div>
       )}
 
       <h2 className="room-panel__title">Play with a friend</h2>
