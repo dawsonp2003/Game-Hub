@@ -72,12 +72,17 @@ function bestMove(board: Cell[], ai: Player): number {
 
 type TttMessage =
   | { type: 'move'; index: number; player: Player }
-  | { type: 'ttt:reset' }
+  | { type: 'ttt:reset'; firstPlayer: Player }
   | { type: 'ttt:session-score'; wins: SessionWins }
+
+function nextFirstPlayer(current: Player): Player {
+  return current === 'X' ? 'O' : 'X'
+}
 
 export default function TicTacToe({ mode, session, peerAway = false, onExit }: GameProps) {
   const room = useRoom()
   const [board, setBoard] = useState<Cell[]>(Array(9).fill(null))
+  const [firstPlayer, setFirstPlayer] = useState<Player>('X')
   const [current, setCurrent] = useState<Player>('X')
   const [winner, setWinner] = useState<Player | 'draw' | null>(null)
   const [sessionWins, setSessionWins] = useState<SessionWins>({ host: 0, guest: 0 })
@@ -114,9 +119,13 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
     [isRemote, broadcastSessionScore],
   )
 
-  const resetBoard = useCallback(() => {
+  const resetBoard = useCallback((explicitFirst?: Player) => {
+    setFirstPlayer((prev) => {
+      const first = explicitFirst ?? nextFirstPlayer(prev)
+      setCurrent(first)
+      return first
+    })
     setBoard(Array(9).fill(null))
-    setCurrent('X')
     setWinner(null)
     startTime.current = Date.now()
   }, [])
@@ -166,7 +175,7 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
     return session.onMessage((msg) => {
       const m = msg as TttMessage
       if (m.type === 'move') applyMove(m.index, m.player, true)
-      if (m.type === 'ttt:reset') resetBoard()
+      if (m.type === 'ttt:reset') resetBoard(m.firstPlayer)
       if (m.type === 'ttt:session-score') setSessionWins(m.wins)
     })
   }, [session, isRemote, applyMove, resetBoard])
@@ -207,9 +216,10 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
   }
 
   const reset = () => {
-    resetBoard()
+    const nextFirst = nextFirstPlayer(firstPlayer)
+    resetBoard(nextFirst)
     if (isRemote && session) {
-      session.send({ type: 'ttt:reset' } satisfies TttMessage)
+      session.send({ type: 'ttt:reset', firstPlayer: nextFirst } satisfies TttMessage)
     }
   }
 
@@ -244,10 +254,19 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
       const yourTurn =
         (current === 'X' && session?.role === 'host') ||
         (current === 'O' && session?.role === 'guest')
+      if (!winner && board.every((c) => !c)) {
+        const youGoFirst =
+          (firstPlayer === 'X' && session?.role === 'host') ||
+          (firstPlayer === 'O' && session?.role === 'guest')
+        return youGoFirst ? 'You go first' : 'Friend goes first'
+      }
       return yourTurn ? 'Your turn' : "Opponent's turn"
     }
     if (isAI) return current === 'X' ? 'Your turn (X)' : 'Computer thinking…'
-    if (isPassAndPlay) return `${current}'s turn`
+    if (isPassAndPlay) {
+      if (!winner && board.every((c) => !c)) return `${firstPlayer} goes first`
+      return `${current}'s turn`
+    }
     return ''
   }
 
