@@ -1,7 +1,19 @@
+/** Render's blueprint `fromService.host` sometimes resolves to just the service name. */
+function completeHostname(host: string): string {
+  const clean = host.replace(/\/+$/, '')
+  const isIp = /^\d+\.\d+\.\d+\.\d+$/.test(clean)
+  if (clean === 'localhost' || isIp || clean.includes('.')) return clean
+  return `${clean}.onrender.com`
+}
+
 function normalizeSignalingUrl(value: string): string {
   const trimmed = value.trim()
-  if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) return trimmed
-  return `wss://${trimmed}`
+  if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) {
+    const url = new URL(trimmed)
+    url.hostname = completeHostname(url.hostname)
+    return url.toString().replace(/\/$/, '')
+  }
+  return `wss://${completeHostname(trimmed)}`
 }
 
 /** Derive signaling host from Render static site naming (…-web → …-signaling). */
@@ -17,19 +29,20 @@ function inferSignalingUrlFromHost(): string | null {
 }
 
 export function getSignalingUrl(): string {
-  const env = import.meta.env.VITE_SIGNALING_URL
-  if (env) return normalizeSignalingUrl(env)
-
   if (import.meta.env.DEV) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     return `${protocol}//${window.location.hostname}:3001`
   }
 
+  // Prefer live hostname inference — always correct on Render, even if build-time env is wrong
   const inferred = inferSignalingUrlFromHost()
   if (inferred) return inferred
 
+  const env = import.meta.env.VITE_SIGNALING_URL
+  if (env) return normalizeSignalingUrl(env)
+
   throw new Error(
-    'Multiplayer is not configured. Set VITE_SIGNALING_URL to your signaling server (e.g. wss://game-arcade-signaling.onrender.com).',
+    'Multiplayer is not configured. Set VITE_SIGNALING_URL to your signaling server (e.g. game-arcade-signaling.onrender.com).',
   )
 }
 
