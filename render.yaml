@@ -20,7 +20,10 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_SIGNALING_URL
-        sync: false
+        fromService:
+          type: web
+          name: game-arcade-signaling
+          property: host
     routes:
       - type: rewrite
         source: /*

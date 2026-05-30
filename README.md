@@ -42,10 +42,10 @@ Open the URL Vite prints (usually `http://localhost:5173`). Multiplayer dev conn
 
 1. Push this repo to GitHub.
 2. In [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint** → connect the repo (uses `render.yaml`).
-3. For the static site service **game-arcade-web**, set environment variable:
-   - `VITE_SIGNALING_URL` = `wss://YOUR-SIGNALING-SERVICE.onrender.com`  
-     (use the signaling service’s public URL from Render, with `wss://`)
-4. Deploy both services.
+3. The blueprint auto-sets `VITE_SIGNALING_URL` on the static site from the signaling service hostname.  
+   If you created services manually, set on **game-arcade-web** before building:
+   - `VITE_SIGNALING_URL` = `game-arcade-signaling.onrender.com` (or full `wss://…` URL)
+4. **Redeploy the static site** after any env change (Vite bakes this in at build time).
 
 **iOS home screen:** Safari → Share → **Add to Home Screen**.
 

@@ -1,14 +1,36 @@
+function normalizeSignalingUrl(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) return trimmed
+  return `wss://${trimmed}`
+}
+
+/** Derive signaling host from Render static site naming (…-web → …-signaling). */
+function inferSignalingUrlFromHost(): string | null {
+  const { hostname } = window.location
+  if (!hostname.endsWith('.onrender.com')) return null
+
+  if (hostname.includes('-web')) {
+    return `wss://${hostname.replace('-web', '-signaling')}`
+  }
+
+  return null
+}
+
 export function getSignalingUrl(): string {
   const env = import.meta.env.VITE_SIGNALING_URL
-  if (env) return env
+  if (env) return normalizeSignalingUrl(env)
 
   if (import.meta.env.DEV) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     return `${protocol}//${window.location.hostname}:3001`
   }
 
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${window.location.host}`
+  const inferred = inferSignalingUrlFromHost()
+  if (inferred) return inferred
+
+  throw new Error(
+    'Multiplayer is not configured. Set VITE_SIGNALING_URL to your signaling server (e.g. wss://game-arcade-signaling.onrender.com).',
+  )
 }
 
 export type SignalingMessage =
@@ -25,11 +47,23 @@ export class SignalingClient {
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const url = getSignalingUrl()
+      let url: string
+      try {
+        url = getSignalingUrl()
+      } catch (e) {
+        reject(e instanceof Error ? e : new Error('Signaling URL not configured'))
+        return
+      }
+
       this.ws = new WebSocket(url)
 
       this.ws.onopen = () => resolve()
-      this.ws.onerror = () => reject(new Error('Could not connect to signaling server'))
+      this.ws.onerror = () =>
+        reject(
+          new Error(
+            `Could not connect to signaling server (${url}). If this is your first visit in a while, wait ~60s for the free server to wake up and try again.`,
+          ),
+        )
       this.ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data as string) as SignalingMessage
