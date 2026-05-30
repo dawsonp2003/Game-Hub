@@ -46,18 +46,19 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
     return (
       <section className="room-panel room-panel--active" aria-label="Multiplayer room">
         <div className="room-panel__topbar">
-          {room.role === 'host' && <span className="room-panel__role">Host</span>}
-          {room.role === 'guest' && <span className="room-panel__role">Guest</span>}
-          {onClose && (
-            <button type="button" className="room-panel__close btn-ghost" onClick={onClose} aria-label="Close">
-              ×
-            </button>
-          )}
-        </div>
-
-        <div className="room-panel__header">
-          <span className="room-panel__badge">Room</span>
-          <span className="room-panel__code">{room.roomCode}</span>
+          <div className="room-panel__header">
+            <span className="room-panel__badge">Room</span>
+            <span className="room-panel__code">{room.roomCode}</span>
+          </div>
+          <div className="room-panel__topbar-actions">
+            {room.role === 'host' && <span className="room-panel__role">Host</span>}
+            {room.role === 'guest' && <span className="room-panel__role">Guest</span>}
+            {onClose && (
+              <button type="button" className="room-panel__close btn-ghost" onClick={onClose} aria-label="Close">
+                ×
+              </button>
+            )}
+          </div>
         </div>
 
         {(room.loading || progressText) && (
