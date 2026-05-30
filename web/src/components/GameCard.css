@@ -13,6 +13,9 @@
   min-height: 120px;
   position: relative;
   transition: transform 0.15s ease, background 0.15s ease;
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
 }
 
 .game-card:active {
@@ -43,4 +46,27 @@
   border-radius: 6px;
   background: var(--accent);
   color: #fff;
+}
+
+.game-card__action {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.game-card__action--suggest {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.game-card__action--muted {
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: none;
 }

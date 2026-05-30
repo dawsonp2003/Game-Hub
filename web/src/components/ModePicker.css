@@ -18,4 +18,19 @@
 
 .mode-picker__btn {
   width: 100%;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mode-picker__btn--disabled {
+  opacity: 0.45;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.mode-picker__hint {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  opacity: 0.85;
 }

@@ -7,6 +7,11 @@ import './TicTacToe.css'
 type Cell = 'X' | 'O' | null
 type Player = 'X' | 'O'
 
+interface SessionWins {
+  host: number
+  guest: number
+}
+
 const WIN_LINES = [
   [0, 1, 2],
   [3, 4, 5],
@@ -65,17 +70,17 @@ function bestMove(board: Cell[], ai: Player): number {
   return move
 }
 
-interface MoveMessage {
-  type: 'move'
-  index: number
-  player: Player
-}
+type TttMessage =
+  | { type: 'move'; index: number; player: Player }
+  | { type: 'ttt:reset' }
+  | { type: 'ttt:session-score'; wins: SessionWins }
 
 export default function TicTacToe({ mode, session, peerAway = false, onExit }: GameProps) {
   const room = useRoom()
   const [board, setBoard] = useState<Cell[]>(Array(9).fill(null))
   const [current, setCurrent] = useState<Player>('X')
   const [winner, setWinner] = useState<Player | 'draw' | null>(null)
+  const [sessionWins, setSessionWins] = useState<SessionWins>({ host: 0, guest: 0 })
   const startTime = useRef(Date.now())
   const gameId = 'tic-tac-toe'
 
@@ -83,8 +88,38 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
   const isAI = mode === 'ai'
   const isPassAndPlay = mode === 'pass-and-play'
 
-  const mySymbol: Player =
-    isRemote && session?.role === 'guest' ? 'O' : 'X'
+  const mySymbol: Player = isRemote && session?.role === 'guest' ? 'O' : 'X'
+
+  const broadcastSessionScore = useCallback(
+    (wins: SessionWins) => {
+      if (isRemote && session) {
+        session.send({ type: 'ttt:session-score', wins } satisfies TttMessage)
+      }
+    },
+    [isRemote, session],
+  )
+
+  const recordSessionWin = useCallback(
+    (result: Player | 'draw') => {
+      if (!isRemote || result === 'draw') return
+
+      setSessionWins((prev) => {
+        const next = { ...prev }
+        if (result === 'X') next.host += 1
+        else next.guest += 1
+        broadcastSessionScore(next)
+        return next
+      })
+    },
+    [isRemote, broadcastSessionScore],
+  )
+
+  const resetBoard = useCallback(() => {
+    setBoard(Array(9).fill(null))
+    setCurrent('X')
+    setWinner(null)
+    startTime.current = Date.now()
+  }, [])
 
   const canPlay = useCallback(() => {
     if (winner) return false
@@ -99,7 +134,7 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
   }, [winner, peerAway, room.status, room.isPlayReady, isRemote, isAI, session, current])
 
   const applyMove = useCallback(
-    (index: number, player: Player) => {
+    (index: number, player: Player, fromNetwork = false) => {
       setBoard((prev) => {
         if (prev[index] || winner) return prev
         const next = [...prev] as Cell[]
@@ -116,22 +151,25 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
               (w === 'X' && session?.role === 'host') ||
               (w === 'O' && session?.role === 'guest')
             stats.recordResult(gameId, won ? 'win' : 'loss')
+            if (!fromNetwork) recordSessionWin(w)
           }
         }
         return next
       })
       setCurrent((p) => (p === 'X' ? 'O' : 'X'))
     },
-    [winner, isAI, isRemote, session],
+    [winner, isAI, isRemote, session, recordSessionWin],
   )
 
   useEffect(() => {
     if (!session || !isRemote) return
     return session.onMessage((msg) => {
-      const m = msg as MoveMessage
-      if (m.type === 'move') applyMove(m.index, m.player)
+      const m = msg as TttMessage
+      if (m.type === 'move') applyMove(m.index, m.player, true)
+      if (m.type === 'ttt:reset') resetBoard()
+      if (m.type === 'ttt:session-score') setSessionWins(m.wins)
     })
-  }, [session, isRemote, applyMove])
+  }, [session, isRemote, applyMove, resetBoard])
 
   useEffect(() => {
     if (!isAI || current !== 'O' || winner) return
@@ -162,18 +200,29 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
     if (isRemote) {
       const player: Player = session?.role === 'guest' ? 'O' : 'X'
       if (current !== player) return
-      session?.send({ type: 'move', index, player } satisfies MoveMessage)
+      session?.send({ type: 'move', index, player } satisfies TttMessage)
     }
 
     applyMove(index, current)
   }
 
   const reset = () => {
-    setBoard(Array(9).fill(null))
-    setCurrent('X')
-    setWinner(null)
-    startTime.current = Date.now()
+    resetBoard()
+    if (isRemote && session) {
+      session.send({ type: 'ttt:reset' } satisfies TttMessage)
+    }
   }
+
+  const myWins = isRemote
+    ? session?.role === 'host'
+      ? sessionWins.host
+      : sessionWins.guest
+    : 0
+  const theirWins = isRemote
+    ? session?.role === 'host'
+      ? sessionWins.guest
+      : sessionWins.host
+    : 0
 
   const statusText = () => {
     if (winner === 'draw') return "It's a draw!"
@@ -204,6 +253,12 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
 
   return (
     <div className="ttt">
+      {isRemote && (
+        <div className="ttt__scoreboard" aria-label="Session score">
+          <span className="ttt__score-you">You ({mySymbol}): {myWins}</span>
+          <span className="ttt__score-them">Friend: {theirWins}</span>
+        </div>
+      )}
       <p className="ttt__status">{statusText()}</p>
       <div className="ttt__board" role="grid" aria-label="Tic tac toe board">
         {board.map((cell, i) => (

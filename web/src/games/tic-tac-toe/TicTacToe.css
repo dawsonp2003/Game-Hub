@@ -6,6 +6,22 @@
   flex: 1;
 }
 
+.ttt__scoreboard {
+  display: flex;
+  justify-content: space-between;
+  width: min(100%, 320px);
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-elevated);
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.ttt__score-them {
+  color: var(--text-muted);
+}
+
 .ttt__status {
   font-size: 1.125rem;
   font-weight: 600;

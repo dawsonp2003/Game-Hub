@@ -8,6 +8,10 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { getGameById } from '../games/registry'
+import type { GameLaunch, GameSuggestion } from '../lib/multiplayer/room-messages'
+import { isRoomChannelMessage } from '../lib/multiplayer/room-messages'
 import type { ConnectionState, MultiplayerSession, SessionRole } from '../lib/multiplayer/session'
 import { RoomConnection } from '../lib/multiplayer/room'
 
@@ -22,16 +26,39 @@ export interface RoomContextValue {
   session: MultiplayerSession | null
   isInRoom: boolean
   isPlayReady: boolean
+  suggestion: GameSuggestion | null
+  pendingLaunch: GameLaunch | null
+  lastSuggested: GameSuggestion | null
   createRoom: () => Promise<void>
   joinRoom: (code: string) => Promise<void>
   leaveRoom: () => void
   closeRoom: () => void
+  launchGame: (gameId: string) => void
+  suggestGame: (gameId: string) => void
+  acceptSuggestion: () => void
+  dismissSuggestion: () => void
+  clearPendingLaunch: () => void
 }
 
 const RoomContext = createContext<RoomContextValue | null>(null)
 
+function RoomNavigator() {
+  const { pendingLaunch, clearPendingLaunch } = useRoom()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!pendingLaunch) return
+    navigate(`/play/${pendingLaunch.gameId}`, { state: { roomLaunch: true } })
+    clearPendingLaunch()
+  }, [pendingLaunch, navigate, clearPendingLaunch])
+
+  return null
+}
+
 export function RoomProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate()
   const connectionRef = useRef<RoomConnection | null>(null)
+  const roleRef = useRef<SessionRole | null>(null)
   const [status, setStatus] = useState<ConnectionState>('disconnected')
   const [role, setRole] = useState<SessionRole | null>(null)
   const [roomCode, setRoomCode] = useState<string | null>(null)
@@ -40,6 +67,11 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false)
   const [peerAwayUntil, setPeerAwayUntil] = useState<number | null>(null)
   const [session, setSession] = useState<MultiplayerSession | null>(null)
+  const [suggestion, setSuggestion] = useState<GameSuggestion | null>(null)
+  const [pendingLaunch, setPendingLaunch] = useState<GameLaunch | null>(null)
+  const [lastSuggested, setLastSuggested] = useState<GameSuggestion | null>(null)
+
+  roleRef.current = role
 
   const getConnection = useCallback(() => {
     if (!connectionRef.current) {
@@ -47,6 +79,23 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     }
     return connectionRef.current
   }, [])
+
+  useEffect(() => {
+    if (!session) return
+    return session.onMessage((msg) => {
+      if (!isRoomChannelMessage(msg)) return
+
+      if (msg.type === 'room:suggest' && roleRef.current === 'host') {
+        setSuggestion({ gameId: msg.gameId, gameName: msg.gameName })
+      }
+      if (msg.type === 'room:dismiss-suggestion') {
+        setSuggestion(null)
+      }
+      if (msg.type === 'room:launch') {
+        setPendingLaunch({ gameId: msg.gameId, gameName: msg.gameName })
+      }
+    })
+  }, [session])
 
   useEffect(() => {
     const conn = getConnection()
@@ -74,12 +123,13 @@ export function RoomProvider({ children }: { children: ReactNode }) {
           setRoomCode(null)
           setRole(null)
           setPeerAwayUntil(null)
+          setSuggestion(null)
+          setPendingLaunch(null)
+          setLastSuggested(null)
           setStatus('disconnected')
           setStatusMessage('')
           setError(
-            event.reason === 'host-closed'
-              ? 'Host closed the room'
-              : 'Room closed',
+            event.reason === 'host-closed' ? 'Host closed the room' : 'Room closed',
           )
           connectionRef.current = null
           setSession(null)
@@ -93,9 +143,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     conn.tryRestoreRoom().finally(() => setLoading(false))
 
-    return () => {
-      unsub()
-    }
+    return () => unsub()
   }, [getConnection])
 
   const createRoom = useCallback(async () => {
@@ -140,6 +188,9 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     setStatus('disconnected')
     setStatusMessage('')
     setPeerAwayUntil(null)
+    setSuggestion(null)
+    setPendingLaunch(null)
+    setLastSuggested(null)
     setError(null)
   }, [])
 
@@ -152,6 +203,51 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     setStatus('disconnected')
     setStatusMessage('')
     setPeerAwayUntil(null)
+    setSuggestion(null)
+    setPendingLaunch(null)
+    setLastSuggested(null)
+  }, [])
+
+  const launchGame = useCallback(
+    (gameId: string) => {
+      const game = getGameById(gameId)
+      if (!game || roleRef.current !== 'host') return
+
+      session?.send({
+        type: 'room:launch',
+        gameId,
+        gameName: game.name,
+      })
+      setSuggestion(null)
+      navigate(`/play/${gameId}`, { state: { roomLaunch: true } })
+    },
+    [session, navigate],
+  )
+
+  const suggestGame = useCallback(
+    (gameId: string) => {
+      const game = getGameById(gameId)
+      if (!game || roleRef.current !== 'guest') return
+
+      const payload = { type: 'room:suggest' as const, gameId, gameName: game.name }
+      session?.send(payload)
+      setLastSuggested({ gameId, gameName: game.name })
+    },
+    [session],
+  )
+
+  const acceptSuggestion = useCallback(() => {
+    if (!suggestion || roleRef.current !== 'host') return
+    launchGame(suggestion.gameId)
+  }, [suggestion, launchGame])
+
+  const dismissSuggestion = useCallback(() => {
+    setSuggestion(null)
+    session?.send({ type: 'room:dismiss-suggestion' })
+  }, [session])
+
+  const clearPendingLaunch = useCallback(() => {
+    setPendingLaunch(null)
   }, [])
 
   const value = useMemo<RoomContextValue>(
@@ -166,10 +262,18 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       session,
       isInRoom: status !== 'disconnected',
       isPlayReady: status === 'connected',
+      suggestion,
+      pendingLaunch,
+      lastSuggested,
       createRoom,
       joinRoom,
       leaveRoom,
       closeRoom,
+      launchGame,
+      suggestGame,
+      acceptSuggestion,
+      dismissSuggestion,
+      clearPendingLaunch,
     }),
     [
       status,
@@ -180,14 +284,27 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       loading,
       peerAwayUntil,
       session,
+      suggestion,
+      pendingLaunch,
+      lastSuggested,
       createRoom,
       joinRoom,
       leaveRoom,
       closeRoom,
+      launchGame,
+      suggestGame,
+      acceptSuggestion,
+      dismissSuggestion,
+      clearPendingLaunch,
     ],
   )
 
-  return <RoomContext.Provider value={value}>{children}</RoomContext.Provider>
+  return (
+    <RoomContext.Provider value={value}>
+      <RoomNavigator />
+      {children}
+    </RoomContext.Provider>
+  )
 }
 
 export function useRoom(): RoomContextValue {

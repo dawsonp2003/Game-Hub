@@ -1,5 +1,5 @@
 import { Suspense, useCallback, useEffect, useMemo, useState, type ComponentType } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useRoom } from '../context/RoomContext'
 import type { GameDef, GameProps } from '../games/types'
 import type { GameMode } from '../lib/multiplayer/types'
@@ -15,20 +15,22 @@ interface GameShellProps {
 
 export default function GameShell({ game }: GameShellProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const room = useRoom()
-  const supportsRemote = game.modes.includes('remote')
+  const roomLaunch = !!(location.state as { roomLaunch?: boolean } | null)?.roomLaunch
 
   const [phase, setPhase] = useState<ShellPhase>('mode')
   const [mode, setMode] = useState<GameMode | null>(null)
   const [localSession] = useState(() => createLocalSession())
   const [GameComponent, setGameComponent] = useState<ComponentType<GameProps> | null>(null)
 
-  const availableModes = useMemo(() => {
-    if (room.isInRoom) {
-      return game.modes.filter((m) => m !== 'remote')
+  const disabledModes = useMemo(() => {
+    const disabled: GameMode[] = []
+    if (game.modes.includes('remote') && !room.isPlayReady) {
+      disabled.push('remote')
     }
-    return game.modes
-  }, [game.modes, room.isInRoom])
+    return disabled
+  }, [game.modes, room.isPlayReady])
 
   useEffect(() => {
     let cancelled = false
@@ -41,21 +43,21 @@ export default function GameShell({ game }: GameShellProps) {
   }, [game])
 
   useEffect(() => {
-    if (supportsRemote && room.isPlayReady) {
+    if (roomLaunch && game.modes.includes('remote') && room.isPlayReady) {
       setMode('remote')
       setPhase('playing')
       return
     }
 
-    if (availableModes.length === 1) {
-      setMode(availableModes[0]!)
+    if (game.modes.length === 1) {
+      setMode(game.modes[0]!)
       setPhase('playing')
       return
     }
 
     setPhase('mode')
     setMode(null)
-  }, [supportsRemote, room.isPlayReady, availableModes])
+  }, [roomLaunch, game.modes, room.isPlayReady])
 
   const activeSession = mode === 'remote' && room.session ? room.session : localSession
 
@@ -69,13 +71,15 @@ export default function GameShell({ game }: GameShellProps) {
   }, [navigate])
 
   const handleBack = useCallback(() => {
-    if (phase === 'playing' && availableModes.length > 1) {
+    if (phase === 'playing' && game.modes.length > 1) {
       setPhase('mode')
       setMode(null)
     } else {
       navigate('/')
     }
-  }, [phase, availableModes.length, navigate])
+  }, [phase, game.modes.length, navigate])
+
+  const showModePicker = phase === 'mode' && game.modes.length > 1
 
   return (
     <div className="game-shell">
@@ -88,15 +92,19 @@ export default function GameShell({ game }: GameShellProps) {
         </h1>
       </header>
 
-      {room.isInRoom && supportsRemote && !room.isPlayReady && (
+      {room.isInRoom && game.modes.includes('remote') && !room.isPlayReady && (
         <div className="game-shell__room-banner">
-          Room {room.roomCode}: {room.statusMessage || 'Waiting for friend…'}
+          Join a room and connect on the home page to play remotely.
         </div>
       )}
 
       <main className="game-shell__main">
-        {phase === 'mode' && availableModes.length > 1 && (
-          <ModePicker modes={availableModes} onSelect={handleModeSelect} />
+        {showModePicker && (
+          <ModePicker
+            modes={game.modes}
+            disabledModes={disabledModes}
+            onSelect={handleModeSelect}
+          />
         )}
 
         {phase === 'playing' && mode && GameComponent && (

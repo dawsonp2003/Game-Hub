@@ -4,6 +4,17 @@
   border-radius: 16px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
+  position: relative;
+}
+
+.room-panel__close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  min-width: 36px;
+  min-height: 36px;
 }
 
 .room-panel--active {
@@ -96,6 +107,29 @@
 }
 
 .room-panel__actions .btn {
+  width: 100%;
+}
+
+.room-panel__suggestion {
+  margin: 0.75rem 0;
+  padding: 0.875rem;
+  border-radius: 12px;
+  background: rgba(108, 92, 231, 0.15);
+  border: 1px solid var(--accent);
+}
+
+.room-panel__suggestion-text {
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+}
+
+.room-panel__suggestion-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.room-panel__suggestion-actions .btn {
   width: 100%;
 }
 
