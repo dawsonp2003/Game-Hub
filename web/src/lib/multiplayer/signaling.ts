@@ -33,6 +33,57 @@ export function getSignalingUrl(): string {
   )
 }
 
+export function getSignalingHttpUrl(): string {
+  return getSignalingUrl()
+    .replace(/^wss:/, 'https:')
+    .replace(/^ws:/, 'http:')
+    .replace(/\/$/, '')
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** Ping the HTTP endpoint to wake a sleeping Render free-tier instance. */
+export async function wakeSignalingServer(): Promise<void> {
+  const base = getSignalingHttpUrl()
+  try {
+    await fetch(`${base}/health`, { cache: 'no-store' })
+  } catch {
+    try {
+      await fetch(base, { mode: 'no-cors', cache: 'no-store' })
+    } catch {
+      /* Request may still reach the server and wake it */
+    }
+  }
+}
+
+export async function checkSignalingHealth(): Promise<{
+  ok: boolean
+  wsUrl: string
+  httpUrl: string
+  message: string
+}> {
+  const wsUrl = getSignalingUrl()
+  const httpUrl = getSignalingHttpUrl()
+
+  try {
+    const res = await fetch(`${httpUrl}/health`, { cache: 'no-store' })
+    if (res.ok) {
+      return { ok: true, wsUrl, httpUrl, message: 'Signaling server is reachable' }
+    }
+    return { ok: false, wsUrl, httpUrl, message: `Server responded with ${res.status}` }
+  } catch {
+    return {
+      ok: false,
+      wsUrl,
+      httpUrl,
+      message:
+        'Cannot reach signaling server. It may be waking up (~60s on free tier), blocked by VPN/firewall/ad-blocker, or your browser may be running a cached old version of the app.',
+    }
+  }
+}
+
 export type SignalingMessage =
   | { type: 'room-created'; code: string }
   | { type: 'room-joined' }
@@ -45,25 +96,32 @@ export class SignalingClient {
   private ws: WebSocket | null = null
   private listeners = new Map<string, Set<(data: unknown) => void>>()
 
-  connect(): Promise<void> {
+  private connectOnce(url: string, timeoutMs: number): Promise<void> {
     return new Promise((resolve, reject) => {
-      let url: string
-      try {
-        url = getSignalingUrl()
-      } catch (e) {
-        reject(e instanceof Error ? e : new Error('Signaling URL not configured'))
-        return
+      this.ws = new WebSocket(url)
+      let settled = false
+
+      const timer = window.setTimeout(() => {
+        if (settled) return
+        settled = true
+        this.ws?.close()
+        reject(new Error(`Connection timed out after ${timeoutMs / 1000}s`))
+      }, timeoutMs)
+
+      this.ws.onopen = () => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(timer)
+        resolve()
       }
 
-      this.ws = new WebSocket(url)
+      this.ws.onerror = () => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(timer)
+        reject(new Error('WebSocket connection failed'))
+      }
 
-      this.ws.onopen = () => resolve()
-      this.ws.onerror = () =>
-        reject(
-          new Error(
-            `Could not connect to signaling server (${url}). If this is your first visit in a while, wait ~60s for the free server to wake up and try again.`,
-          ),
-        )
       this.ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data as string) as SignalingMessage
@@ -72,8 +130,37 @@ export class SignalingClient {
           /* ignore malformed */
         }
       }
+
       this.ws.onclose = () => this.emit('close', {})
     })
+  }
+
+  async connect(): Promise<void> {
+    let url: string
+    try {
+      url = getSignalingUrl()
+    } catch (e) {
+      throw e instanceof Error ? e : new Error('Signaling URL not configured')
+    }
+
+    const maxAttempts = 3
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      await wakeSignalingServer()
+      if (attempt > 1) await sleep(2500 * attempt)
+
+      try {
+        await this.connectOnce(url, 20_000)
+        return
+      } catch (e) {
+        if (attempt === maxAttempts) {
+          const detail = e instanceof Error ? e.message : 'Unknown error'
+          throw new Error(
+            `Could not connect to ${url} (${detail}). Try a hard refresh (Ctrl+Shift+R), disable ad blockers/VPN, or wait ~60s for the free server to wake up.`,
+          )
+        }
+      }
+    }
   }
 
   send(data: unknown): void {

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { checkSignalingHealth, getSignalingUrl } from '../lib/multiplayer/signaling'
 import './RemoteLobby.css'
 
 interface RemoteLobbyProps {
@@ -21,6 +22,26 @@ export default function RemoteLobby({
   onBack,
 }: RemoteLobbyProps) {
   const [joinCode, setJoinCode] = useState('')
+  const [health, setHealth] = useState<{ ok: boolean; message: string } | null>(null)
+  const [checking, setChecking] = useState(true)
+
+  let signalingUrl = ''
+  try {
+    signalingUrl = getSignalingUrl()
+  } catch {
+    signalingUrl = '(not configured)'
+  }
+
+  const runHealthCheck = async () => {
+    setChecking(true)
+    const result = await checkSignalingHealth()
+    setHealth({ ok: result.ok, message: result.message })
+    setChecking(false)
+  }
+
+  useEffect(() => {
+    runHealthCheck()
+  }, [])
 
   return (
     <div className="remote-lobby">
@@ -29,6 +50,25 @@ export default function RemoteLobby({
         One player creates a room and shares the 6-digit code. The other enters it to connect
         directly (peer-to-peer).
       </p>
+
+      <div className="remote-lobby__diag">
+        <span className="remote-lobby__diag-label">Signaling server</span>
+        <code className="remote-lobby__diag-url">{signalingUrl}</code>
+        {checking ? (
+          <p className="remote-lobby__diag-status">Checking connection…</p>
+        ) : health ? (
+          <p
+            className={`remote-lobby__diag-status ${health.ok ? 'ok' : 'bad'}`}
+          >
+            {health.message}
+          </p>
+        ) : null}
+        {!checking && (
+          <button type="button" className="btn btn-secondary remote-lobby__recheck" onClick={runHealthCheck}>
+            Re-check server
+          </button>
+        )}
+      </div>
 
       {error && <p className="remote-lobby__error">{error}</p>}
       {status && <p className="remote-lobby__status">{status}</p>}
@@ -68,6 +108,17 @@ export default function RemoteLobby({
           </button>
         </>
       )}
+
+      <details className="remote-lobby__help">
+        <summary>Laptop not connecting?</summary>
+        <ul>
+          <li>Hard refresh: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> (clears cached old app)</li>
+          <li>Try an incognito/private window</li>
+          <li>Disable ad blockers or VPN for this site</li>
+          <li>In DevTools → Application → Service Workers → Unregister, then reload</li>
+          <li>Confirm the URL above ends in <code>-signaling.onrender.com</code>, not <code>-web</code></li>
+        </ul>
+      </details>
 
       <button type="button" className="btn btn-ghost remote-lobby__back" onClick={onBack}>
         Back
