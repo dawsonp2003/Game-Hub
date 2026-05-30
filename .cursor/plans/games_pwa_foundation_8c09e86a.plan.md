@@ -4,34 +4,34 @@ overview: Build a scalable React + Vite + TypeScript PWA (installable on iOS hom
 todos:
   - id: scaffold
     content: Scaffold web/ Vite React TS app with vite-plugin-pwa, base routing (/ and /play/:gameId), and theming
-    status: in_progress
+    status: completed
   - id: registry
     content: Implement game registry (types.ts, registry.ts) and auto-generated MenuGrid + GameCard home menu
-    status: pending
+    status: completed
   - id: shell
     content: Build GameShell, ModePicker, and the MultiplayerSession abstraction (single/AI/pass-and-play local backends)
-    status: pending
+    status: completed
   - id: first-games
     content: Implement Tic Tac Toe and Snake as the first two registered games to validate the foundation
-    status: pending
+    status: completed
   - id: signaling-server
     content: Create server/ Node + ws signaling server with 6-digit room-code registration/relay
-    status: pending
+    status: completed
   - id: webrtc-client
     content: Build lib/multiplayer WebRTC client + remote MultiplayerSession; wire remote play into Tic Tac Toe
-    status: pending
+    status: completed
   - id: pwa-apple
     content: Add manifest.webmanifest, apple-touch icons, iOS meta tags, offline app-shell caching, safe-area styling
-    status: pending
+    status: completed
   - id: deploy
     content: Add render.yaml blueprint (static site + free web service) and deployment instructions
-    status: pending
+    status: completed
   - id: readme
     content: Write README.md with the categorized game list and a roadmap checklist to work through over time
-    status: pending
+    status: completed
   - id: stats-local
     content: Add lib/stats local on-device stats module (wins/streaks/playtime) with an interface swappable to Supabase later
-    status: pending
+    status: completed
 isProject: false
 ---
 

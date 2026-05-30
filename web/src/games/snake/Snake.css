@@ -1,0 +1,90 @@
+.snake-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 1rem 1rem;
+  flex: 1;
+  touch-action: none;
+}
+
+.snake-game__hud {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: min(100%, 360px);
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.snake-game__board {
+  display: grid;
+  width: min(100vw - 2rem, 360px);
+  aspect-ratio: 1;
+  gap: 1px;
+  background: var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.snake-game__cell {
+  background: var(--bg-elevated);
+}
+
+.snake-game__cell.snake {
+  background: #00b894;
+}
+
+.snake-game__cell.head {
+  background: #55efc4;
+}
+
+.snake-game__cell.food {
+  background: #ff6b6b;
+  border-radius: 50%;
+}
+
+.snake-game__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 26, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  z-index: 10;
+  padding: 1rem;
+}
+
+.snake-game__overlay .btn {
+  min-width: 200px;
+}
+
+.snake-game__controls {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.snake-game__pad-row {
+  display: flex;
+  gap: 4px;
+}
+
+.snake-game__pad {
+  width: 64px;
+  height: 64px;
+  font-size: 1.5rem;
+  background: var(--bg-card);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.snake-game__pad:active {
+  background: var(--accent);
+}

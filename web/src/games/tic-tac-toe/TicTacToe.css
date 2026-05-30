@@ -1,0 +1,65 @@
+.ttt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  flex: 1;
+}
+
+.ttt__status {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 1.5rem;
+  min-height: 1.5em;
+}
+
+.ttt__board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: min(100%, 320px);
+  aspect-ratio: 1;
+}
+
+.ttt__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  font-weight: 800;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  min-height: 0;
+  aspect-ratio: 1;
+}
+
+.ttt__cell.x {
+  color: #74b9ff;
+}
+
+.ttt__cell.o {
+  color: #ff7675;
+}
+
+.ttt__cell:disabled:not(.x):not(.o) {
+  opacity: 1;
+}
+
+.ttt__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  width: min(100%, 280px);
+}
+
+.ttt__actions .btn {
+  width: 100%;
+}
+
+.ttt__you {
+  margin-top: 1rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}

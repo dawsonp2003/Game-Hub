@@ -1,0 +1,12 @@
+{
+  "name": "game-arcade",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev:web": "npm run dev --prefix web",
+    "dev:server": "npm run dev --prefix server",
+    "build": "npm run build --prefix server && npm run build --prefix web",
+    "build:web": "npm run build --prefix web",
+    "build:server": "npm run build --prefix server"
+  }
+}
