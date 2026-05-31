@@ -13,7 +13,8 @@ import { getGameById } from '../games/registry'
 import type { GameLaunch, GameSuggestion } from '../lib/multiplayer/room-messages'
 import { isRoomChannelMessage } from '../lib/multiplayer/room-messages'
 import type { ConnectionState, MultiplayerSession, SessionRole } from '../lib/multiplayer/session'
-import { RoomConnection, type RoomEvent } from '../lib/multiplayer/room'
+import { RoomConnection, clearRoomPrefs, loadRoomPrefs, type RoomEvent } from '../lib/multiplayer/room'
+import { parseRoomCodeFromUrl, setRoomUrlParam } from '../lib/multiplayer/room-link'
 
 export type RoomPendingAction = 'create' | 'join' | 'restore' | null
 
@@ -41,6 +42,9 @@ export interface RoomContextValue {
   acceptSuggestion: () => void
   dismissSuggestion: () => void
   clearPendingLaunch: () => void
+  /** True when the app should show the room panel (e.g. invite link). */
+  roomPanelOpen: boolean
+  setRoomPanelOpen: (open: boolean) => void
 }
 
 const RoomContext = createContext<RoomContextValue | null>(null)
@@ -63,18 +67,22 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   const connectionRef = useRef<RoomConnection | null>(null)
   const eventUnsubRef = useRef<(() => void) | null>(null)
   const roleRef = useRef<SessionRole | null>(null)
+  const didBootstrapRef = useRef(false)
   const [status, setStatus] = useState<ConnectionState>('disconnected')
   const [role, setRole] = useState<SessionRole | null>(null)
   const [roomCode, setRoomCode] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [pendingAction, setPendingAction] = useState<RoomPendingAction>(null)
+  const [loading, setLoading] = useState(() => !!parseRoomCodeFromUrl())
+  const [pendingAction, setPendingAction] = useState<RoomPendingAction>(() =>
+    parseRoomCodeFromUrl() ? 'join' : null,
+  )
   const [peerAwayUntil, setPeerAwayUntil] = useState<number | null>(null)
   const [session, setSession] = useState<MultiplayerSession | null>(null)
   const [suggestion, setSuggestion] = useState<GameSuggestion | null>(null)
   const [pendingLaunch, setPendingLaunch] = useState<GameLaunch | null>(null)
   const [lastSuggested, setLastSuggested] = useState<GameSuggestion | null>(null)
+  const [roomPanelOpen, setRoomPanelOpen] = useState(() => !!parseRoomCodeFromUrl())
 
   roleRef.current = role
 
@@ -153,22 +161,58 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     })
   }, [session])
 
+  // Run once on app load. Guarded by a ref (not torn down on StrictMode's
+  // throwaway cleanup) so the single connection isn't killed mid-handshake.
   useEffect(() => {
+    if (didBootstrapRef.current) return
+    didBootstrapRef.current = true
+
     const conn = replaceConnection()
+    const inviteCode = parseRoomCodeFromUrl()
 
-    setPendingAction('restore')
-    setLoading(true)
-    conn.tryRestoreRoom().finally(() => {
-      setLoading(false)
-      setPendingAction(null)
-    })
+    async function bootstrap() {
+      if (inviteCode) {
+        setRoomPanelOpen(true)
+        setPendingAction('join')
+        setLoading(true)
+        setError(null)
+        setStatusMessage(`Joining room ${inviteCode}…`)
 
-    return () => {
-      eventUnsubRef.current?.()
-      connectionRef.current?.teardown()
-      connectionRef.current = null
+        const prefs = loadRoomPrefs()
+        if (prefs?.code !== inviteCode) clearRoomPrefs()
+
+        try {
+          await conn.joinRoom(inviteCode)
+        } catch (e) {
+          setError(e instanceof Error ? e.message : 'Could not join room')
+          setStatusMessage('')
+        } finally {
+          setLoading(false)
+          setPendingAction(null)
+        }
+        return
+      }
+
+      setPendingAction('restore')
+      setLoading(true)
+      setError(null)
+      try {
+        await conn.tryRestoreRoom()
+      } catch {
+        clearRoomPrefs()
+      } finally {
+        setLoading(false)
+        setPendingAction(null)
+      }
     }
+
+    void bootstrap()
   }, [replaceConnection])
+
+  useEffect(() => {
+    if (roomCode) setRoomUrlParam(roomCode)
+    else setRoomUrlParam(null)
+  }, [roomCode])
 
   const createRoom = useCallback(async () => {
     setPendingAction('create')
@@ -224,6 +268,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     setPendingAction(null)
     setLoading(false)
     setError(null)
+    setRoomUrlParam(null)
   }, [])
 
   const closeRoom = useCallback(() => {
@@ -242,6 +287,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     setLastSuggested(null)
     setPendingAction(null)
     setLoading(false)
+    setRoomUrlParam(null)
   }, [])
 
   const launchGame = useCallback(
@@ -310,6 +356,8 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       acceptSuggestion,
       dismissSuggestion,
       clearPendingLaunch,
+      roomPanelOpen,
+      setRoomPanelOpen,
     }),
     [
       status,
@@ -333,6 +381,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       acceptSuggestion,
       dismissSuggestion,
       clearPendingLaunch,
+      roomPanelOpen,
     ],
   )
 

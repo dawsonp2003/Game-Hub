@@ -311,6 +311,41 @@ export class RoomConnection {
     }, 45_000)
   }
 
+  private waitForSignalingEvent(
+    event: string,
+    onSuccess: (data: unknown) => void,
+    timeoutMs = 30_000,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        cleanup()
+        reject(new Error('Connection timed out — check that the signaling server is running'))
+      }, timeoutMs)
+
+      const unsubSuccess = this.signaling.on(event, (data) => {
+        cleanup()
+        try {
+          onSuccess(data)
+          resolve()
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error('Room error'))
+        }
+      })
+
+      const unsubError = this.signaling.on('error', (data) => {
+        const msg = data as { message?: string }
+        cleanup()
+        reject(new Error(msg.message ?? 'Room error'))
+      })
+
+      const cleanup = () => {
+        window.clearTimeout(timeout)
+        unsubSuccess()
+        unsubError()
+      }
+    })
+  }
+
   async createRoom(): Promise<void> {
     await this.connectSignaling()
     this.role = 'host'
@@ -318,14 +353,16 @@ export class RoomConnection {
     this.wireSignaling()
 
     this.setState('signaling', 'Creating room…')
-    this.signaling.send({ type: 'create-room', clientId: getClientId() })
 
-    this.signaling.on('room-created', (data) => {
+    const pending = this.waitForSignalingEvent('room-created', (data) => {
       const { code } = data as { code: string; role: SessionRole }
       saveRoomPrefs(code, 'host')
-      this.setState('waiting', `Room ${code} — share this code with a friend`)
+      this.setState('waiting', 'Waiting for a friend…')
       this.emit({ type: 'room-code', code, role: 'host' })
     })
+
+    this.signaling.send({ type: 'create-room', clientId: getClientId() })
+    await pending
   }
 
   async joinRoom(code: string): Promise<void> {
@@ -333,14 +370,11 @@ export class RoomConnection {
     if (normalized.length !== 6) throw new Error('Enter a 6-digit room code')
 
     await this.connectSignaling()
-    this.role = 'guest'
-    this.session.role = 'guest'
     this.wireSignaling()
 
     this.setState('signaling', 'Joining room…')
-    this.signaling.send({ type: 'join-room', code: normalized, clientId: getClientId() })
 
-    this.signaling.on('room-joined', (data) => {
+    const pending = this.waitForSignalingEvent('room-joined', (data) => {
       const msg = data as { code: string; role: SessionRole; rejoin?: boolean }
       this.role = msg.role
       this.session.role = msg.role
@@ -350,10 +384,13 @@ export class RoomConnection {
         this.setState('waiting', `Rejoined room ${msg.code}`)
       } else {
         this.setState('signaling', 'In room — connecting to host…')
-        this.startWebRTCAsGuest()
+        void this.startWebRTCAsGuest()
       }
       this.emit({ type: 'room-code', code: msg.code, role: msg.role })
     })
+
+    this.signaling.send({ type: 'join-room', code: normalized, clientId: getClientId() })
+    await pending
   }
 
   async tryRestoreRoom(): Promise<boolean> {

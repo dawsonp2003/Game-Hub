@@ -14,7 +14,6 @@ export default function MenuGrid() {
   const room = useRoom()
   const games = getLiveGames()
   const [filter, setFilter] = useState<Filter>(ALL)
-  const [roomOpen, setRoomOpen] = useState(false)
 
   const categories = useMemo(() => {
     const set = new Set(games.map((g) => g.category))
@@ -26,7 +25,7 @@ export default function MenuGrid() {
     return games.filter((g) => g.category === filter)
   }, [games, filter])
 
-  const showExpandedRoom = roomOpen
+  const showExpandedRoom = room.roomPanelOpen
 
   return (
     <div className="menu-grid">
@@ -35,11 +34,11 @@ export default function MenuGrid() {
         <p className="menu-grid__subtitle">Pick a game to play</p>
       </header>
 
-      {room.isInRoom && !roomOpen && (
+      {room.isInRoom && !room.roomPanelOpen && (
         <button
           type="button"
           className="menu-grid__room-chip"
-          onClick={() => setRoomOpen(true)}
+          onClick={() => room.setRoomPanelOpen(true)}
         >
           <span className="menu-grid__room-chip-code">{room.roomCode}</span>
           <span className={`menu-grid__room-chip-status menu-grid__room-chip-status--${room.status}`}>
@@ -48,18 +47,18 @@ export default function MenuGrid() {
         </button>
       )}
 
-      {!room.isInRoom && !roomOpen && (
+      {!room.isInRoom && !room.roomPanelOpen && (
         <button
           type="button"
           className={`btn menu-grid__friend-btn ${room.loading && room.pendingAction !== 'restore' ? 'menu-grid__friend-btn--loading' : ''}`}
-          onClick={() => setRoomOpen(true)}
+          onClick={() => room.setRoomPanelOpen(true)}
           disabled={room.loading && room.pendingAction !== 'restore'}
         >
           {room.loading && room.pendingAction !== 'restore' ? 'Connecting…' : '👥 Play with a friend'}
         </button>
       )}
 
-      {showExpandedRoom && <RoomPanel onClose={() => setRoomOpen(false)} />}
+      {showExpandedRoom && <RoomPanel onClose={() => room.setRoomPanelOpen(false)} />}
 
       <div className="menu-grid__filters" role="tablist">
         <button

@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRoom } from '../context/RoomContext'
 import { checkSignalingHealth, getSignalingUrl } from '../lib/multiplayer/signaling'
+import { parseRoomCodeFromSearch } from '../lib/multiplayer/room-link'
+import ShareRoomButton from './ShareRoomButton'
 import './RoomPanel.css'
 
 interface RoomPanelProps {
@@ -24,8 +26,13 @@ function progressLabel(
 
 export default function RoomPanel({ onClose }: RoomPanelProps) {
   const room = useRoom()
-  const [joinCode, setJoinCode] = useState('')
+  const [joinCode, setJoinCode] = useState(() => parseRoomCodeFromSearch(window.location.search) ?? '')
   const [health, setHealth] = useState<{ ok: boolean; message: string } | null>(null)
+
+  useEffect(() => {
+    const code = parseRoomCodeFromSearch(window.location.search)
+    if (code) setJoinCode(code)
+  }, [])
 
   let signalingUrl = ''
   try {
@@ -61,14 +68,14 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
           </div>
         </div>
 
-        {(room.loading || progressText) && (
+        {room.loading && (
           <div className="room-panel__progress" role="status" aria-live="polite">
-            {room.loading && <Spinner />}
-            <span>{progressText}</span>
+            <Spinner />
+            <span>{progressText || 'Working…'}</span>
           </div>
         )}
 
-        {!room.loading && (
+        {!room.loading && room.status !== 'waiting' && (
           <p className={`room-panel__status room-panel__status--${room.status}`}>
             {room.statusMessage || 'In room'}
           </p>
@@ -105,8 +112,10 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
         )}
 
         {room.status === 'waiting' && !room.loading && (
-          <p className="room-panel__hint">Share the code above. Friends can join while you browse.</p>
+          <p className="room-panel__hint">Send the invite link so friends can join in one tap.</p>
         )}
+
+        {room.roomCode && <ShareRoomButton roomCode={room.roomCode} />}
 
         {room.status === 'peer-away' && room.peerAwayUntil && (
           <p className="room-panel__hint">
@@ -133,15 +142,15 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
 
   return (
     <section className={`room-panel ${isBusy ? 'room-panel--busy' : ''}`} aria-label="Play with a friend">
-      {onClose && (
-        <div className="room-panel__topbar room-panel__topbar--solo">
+      <div className="room-panel__topbar">
+        <h2 className="room-panel__title">Play with a friend</h2>
+        {onClose && (
           <button type="button" className="room-panel__close btn-ghost" onClick={onClose} disabled={isBusy} aria-label="Close">
             ×
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
-      <h2 className="room-panel__title">Play with a friend</h2>
       <p className="room-panel__intro">
         Create or join a room, then pick a game together. Host chooses; guests can suggest.
       </p>
@@ -153,7 +162,7 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
         </div>
       )}
 
-      {!isBusy && !room.error && (
+      {!isBusy && !room.error && !parseRoomCodeFromSearch(window.location.search) && (
         <p className="room-panel__idle-hint">Tap a button below to get started.</p>
       )}
 
