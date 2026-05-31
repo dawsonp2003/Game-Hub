@@ -1,0 +1,136 @@
+.wg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0.75rem 1rem;
+  flex: 1;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.wg__status {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+  min-height: 1.4em;
+  text-align: center;
+}
+
+.wg__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 1.25rem;
+}
+
+.wg__row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.wg__tile {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  text-transform: uppercase;
+  background: var(--bg-card);
+}
+
+.wg__tile.filled {
+  border-color: var(--text-muted);
+}
+
+.wg__tile.correct {
+  background: #538d4e;
+  border-color: #538d4e;
+  color: #fff;
+}
+
+.wg__tile.present {
+  background: #b59f3b;
+  border-color: #b59f3b;
+  color: #fff;
+}
+
+.wg__tile.absent {
+  background: #3a3a3c;
+  border-color: #3a3a3c;
+  color: #fff;
+}
+
+.wg__keyboard {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wg__kb-row {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.wg__key {
+  min-width: 32px;
+  height: 52px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--bg-card);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.wg__key.wide {
+  min-width: 56px;
+  font-size: 0.75rem;
+  padding: 0 10px;
+}
+
+.wg__key.correct {
+  background: #538d4e;
+  color: #fff;
+}
+
+.wg__key.present {
+  background: #b59f3b;
+  color: #fff;
+}
+
+.wg__key.absent {
+  background: #3a3a3c;
+  color: #fff;
+}
+
+.wg__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 1.25rem;
+}
+
+.wg__actions .btn {
+  width: 100%;
+}
+
+@media (max-width: 380px) {
+  .wg__tile {
+    width: 46px;
+    height: 46px;
+    font-size: 1.25rem;
+  }
+
+  .wg__key {
+    min-width: 28px;
+    height: 48px;
+  }
+}

@@ -1,8 +1,19 @@
 import type { GameDef } from './types'
 import { ticTacToe } from './tic-tac-toe/meta'
 import { snake } from './snake/meta'
+import { wordGuess } from './word-guess/meta'
+import { hangman } from './hangman/meta'
+import { wordLadder } from './word-ladder/meta'
+import { anagram } from './anagram/meta'
 
-export const GAMES: GameDef[] = [ticTacToe, snake]
+export const GAMES: GameDef[] = [
+  wordGuess,
+  hangman,
+  wordLadder,
+  anagram,
+  ticTacToe,
+  snake,
+]
 
 export function getGameById(id: string): GameDef | undefined {
   return GAMES.find((g) => g.id === id)

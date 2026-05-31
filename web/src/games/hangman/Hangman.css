@@ -1,0 +1,81 @@
+.hm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0.75rem 1rem;
+  flex: 1;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.hm__figure {
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.hm__svg {
+  width: 140px;
+  height: 160px;
+}
+
+.hm__status {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+.hm__word {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  margin: 0 0 1.25rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  word-break: break-all;
+}
+
+.hm__keyboard {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  max-width: 340px;
+}
+
+.hm__key {
+  width: 36px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+.hm__key.correct {
+  background: var(--success);
+  color: #fff;
+}
+
+.hm__key.wrong {
+  background: #3a3a3c;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.hm__message {
+  margin-top: 0.75rem;
+  color: var(--danger);
+  font-size: 0.875rem;
+}
+
+.hm__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 1.25rem;
+}
+
+.hm__actions .btn {
+  width: 100%;
+}

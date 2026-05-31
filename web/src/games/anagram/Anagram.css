@@ -1,0 +1,127 @@
+.anag {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.75rem 1rem;
+  flex: 1;
+  max-width: 420px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.anag__tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.anag__tab {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.anag__tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.anag__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.anag__hint {
+  margin: 0 0 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.anag__letters {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0.35em;
+  margin: 0 0 1.25rem;
+}
+
+.anag__input {
+  margin-bottom: 0.75rem;
+}
+
+.anag__btn {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.anag__message {
+  margin: 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.anag__message.ok {
+  color: var(--success);
+}
+
+.anag__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.anag__actions .btn {
+  width: 100%;
+}
+
+.anag__word-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  width: 100%;
+}
+
+.anag__word-list li {
+  padding: 0.35rem 0.65rem;
+  background: var(--bg-card);
+  border-radius: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-size: 0.875rem;
+}
+
+.anag__word-list li.found {
+  background: rgba(0, 184, 148, 0.2);
+  color: var(--success);
+}
+
+.anag__grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  width: min(100%, 280px);
+  margin-bottom: 0.75rem;
+}
+
+.anag__cell {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  background: var(--bg-card);
+  font-weight: 800;
+  font-size: 1.125rem;
+}
+
+.anag__cell.selected {
+  background: var(--accent);
+  color: #fff;
+}

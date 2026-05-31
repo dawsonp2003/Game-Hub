@@ -70,10 +70,10 @@ Work through these over time. Check off as we ship them.
 
 ### Word & letter
 
-- [ ] Word Guess (unlimited Wordle-style)
-- [ ] Hangman
-- [ ] Word Ladder (solo + 1v1)
-- [ ] Anagram / word find
+- [x] Word Guess (unlimited Wordle-style)
+- [x] Hangman
+- [x] Word Ladder (solo + 1v1)
+- [x] Anagram / word find
 - [ ] Crossword generator *(stretch — hard)*
 
 ### Logic & grid puzzles (original mechanics)
