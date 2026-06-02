@@ -1,19 +1,28 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { GameCategory } from '../games/types'
 import { CATEGORY_LABELS } from '../games/types'
-import { getLiveGames } from '../games/registry'
+import { getLiveGames, isMultiplayerGame } from '../games/registry'
 import { useRoom } from '../context/RoomContext'
 import GameCard from './GameCard'
 import RoomPanel from './RoomPanel'
 import './MenuGrid.css'
 
 const ALL = 'all' as const
-type Filter = typeof ALL | GameCategory
+const MULTIPLAYER = 'multiplayer' as const
+type Filter = typeof ALL | typeof MULTIPLAYER | GameCategory
 
 export default function MenuGrid() {
   const room = useRoom()
   const games = getLiveGames()
   const [filter, setFilter] = useState<Filter>(ALL)
+
+  useEffect(() => {
+    if (room.isInRoom) {
+      setFilter(MULTIPLAYER)
+    } else {
+      setFilter((current) => (current === MULTIPLAYER ? ALL : current))
+    }
+  }, [room.isInRoom])
 
   const categories = useMemo(() => {
     const set = new Set(games.map((g) => g.category))
@@ -22,6 +31,7 @@ export default function MenuGrid() {
 
   const filtered = useMemo(() => {
     if (filter === ALL) return games
+    if (filter === MULTIPLAYER) return games.filter(isMultiplayerGame)
     return games.filter((g) => g.category === filter)
   }, [games, filter])
 
@@ -66,8 +76,18 @@ export default function MenuGrid() {
           role="tab"
           className={`menu-grid__filter ${filter === ALL ? 'active' : ''}`}
           onClick={() => setFilter(ALL)}
+          aria-selected={filter === ALL}
         >
           All
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={`menu-grid__filter ${filter === MULTIPLAYER ? 'active' : ''}`}
+          onClick={() => setFilter(MULTIPLAYER)}
+          aria-selected={filter === MULTIPLAYER}
+        >
+          Multiplayer
         </button>
         {categories.map((cat) => (
           <button
@@ -76,6 +96,7 @@ export default function MenuGrid() {
             role="tab"
             className={`menu-grid__filter ${filter === cat ? 'active' : ''}`}
             onClick={() => setFilter(cat)}
+            aria-selected={filter === cat}
           >
             {CATEGORY_LABELS[cat]}
           </button>
@@ -89,7 +110,9 @@ export default function MenuGrid() {
       </div>
 
       {filtered.length === 0 && (
-        <p className="menu-grid__empty">No games in this category yet.</p>
+        <p className="menu-grid__empty">
+          {filter === MULTIPLAYER ? 'No multiplayer games yet.' : 'No games in this category yet.'}
+        </p>
       )}
     </div>
   )

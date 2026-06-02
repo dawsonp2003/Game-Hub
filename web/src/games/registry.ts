@@ -22,3 +22,8 @@ export function getGameById(id: string): GameDef | undefined {
 export function getLiveGames(): GameDef[] {
   return GAMES.filter((g) => g.status === 'live')
 }
+
+/** Games with pass-and-play and/or remote modes. */
+export function isMultiplayerGame(game: GameDef): boolean {
+  return game.modes.includes('remote') || game.modes.includes('pass-and-play')
+}

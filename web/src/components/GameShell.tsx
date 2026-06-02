@@ -43,7 +43,12 @@ export default function GameShell({ game }: GameShellProps) {
   }, [game])
 
   useEffect(() => {
-    if (roomLaunch && game.modes.includes('remote') && room.isPlayReady) {
+    const startRemote =
+      game.modes.includes('remote') &&
+      room.isPlayReady &&
+      (roomLaunch || room.isInRoom)
+
+    if (startRemote) {
       setMode('remote')
       setPhase('playing')
       return
@@ -57,7 +62,7 @@ export default function GameShell({ game }: GameShellProps) {
 
     setPhase('mode')
     setMode(null)
-  }, [roomLaunch, game.modes, room.isPlayReady])
+  }, [roomLaunch, room.isInRoom, game.modes, room.isPlayReady])
 
   const activeSession = mode === 'remote' && room.session ? room.session : localSession
 
@@ -71,13 +76,17 @@ export default function GameShell({ game }: GameShellProps) {
   }, [navigate])
 
   const handleBack = useCallback(() => {
+    if (room.isInRoom) {
+      navigate('/')
+      return
+    }
     if (phase === 'playing' && game.modes.length > 1) {
       setPhase('mode')
       setMode(null)
-    } else {
-      navigate('/')
+      return
     }
-  }, [phase, game.modes.length, navigate])
+    navigate('/')
+  }, [phase, game.modes.length, navigate, room.isInRoom])
 
   const showModePicker = phase === 'mode' && game.modes.length > 1
 
