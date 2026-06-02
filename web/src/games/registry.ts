@@ -4,12 +4,14 @@ import { snake } from './snake/meta'
 import { wordGuess } from './word-guess/meta'
 import { hangman } from './hangman/meta'
 import { wordLadder } from './word-ladder/meta'
+import { wordChain } from './word-chain/meta'
 import { anagram } from './anagram/meta'
 
 export const GAMES: GameDef[] = [
   wordGuess,
   hangman,
   wordLadder,
+  wordChain,
   anagram,
   ticTacToe,
   snake,
