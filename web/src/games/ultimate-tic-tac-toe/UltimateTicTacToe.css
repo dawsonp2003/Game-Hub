@@ -1,0 +1,191 @@
+.uttt {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 0.5rem 0.75rem 1rem;
+  max-width: 520px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.uttt__status {
+  margin: 0 0 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+  flex-shrink: 0;
+}
+
+.uttt__status--win {
+  color: var(--success);
+}
+
+.uttt__you {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.uttt__viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  padding: 0.5rem;
+  touch-action: pan-x pan-y;
+}
+
+.uttt__macro {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(4px, 1.2vw, 8px);
+  width: min(100%, 420px);
+  margin: 0 auto;
+  --uttt-cell: clamp(22px, 7.5vw, 36px);
+}
+
+.uttt__mini {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  transition:
+    opacity 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.uttt__mini--active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.35);
+  opacity: 1;
+  z-index: 2;
+}
+
+.uttt__mini--dimmed {
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+.uttt__macro--free .uttt__mini--dimmed {
+  opacity: 0.55;
+}
+
+.uttt__mini--target {
+  transform: scale(1.02);
+}
+
+.uttt__mini--closed:not(.uttt__mini--active) {
+  pointer-events: none;
+}
+
+.uttt__won-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: clamp(2rem, 12vw, 3.25rem);
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.uttt__won-overlay--x {
+  color: rgba(108, 92, 231, 0.92);
+  background: rgba(108, 92, 231, 0.18);
+}
+
+.uttt__won-overlay--o {
+  color: rgba(0, 184, 148, 0.95);
+  background: rgba(0, 184, 148, 0.15);
+}
+
+.uttt__won-overlay--draw {
+  color: var(--text-muted);
+  background: rgba(128, 128, 128, 0.12);
+  font-size: clamp(1.25rem, 8vw, 2rem);
+  letter-spacing: 0.05em;
+}
+
+.uttt__cell {
+  width: var(--uttt-cell);
+  height: var(--uttt-cell);
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: clamp(0.875rem, 4vw, 1.125rem);
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.uttt__cell:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.uttt__cell--x {
+  color: var(--accent);
+}
+
+.uttt__cell--o {
+  color: var(--success);
+}
+
+.uttt__cell--last {
+  background: rgba(108, 92, 231, 0.2);
+  border-color: var(--accent);
+}
+
+.uttt__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  flex-shrink: 0;
+}
+
+.uttt__actions .btn {
+  width: 100%;
+}
+
+.uttt__hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+@media (max-width: 380px) {
+  .uttt__macro {
+    --uttt-cell: 24px;
+  }
+}
+
+@media (min-width: 480px) {
+  .uttt__viewport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

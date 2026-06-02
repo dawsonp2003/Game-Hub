@@ -1,5 +1,6 @@
 import type { GameDef } from './types'
 import { ticTacToe } from './tic-tac-toe/meta'
+import { ultimateTicTacToe } from './ultimate-tic-tac-toe/meta'
 import { snake } from './snake/meta'
 import { wordGuess } from './word-guess/meta'
 import { hangman } from './hangman/meta'
@@ -14,6 +15,7 @@ export const GAMES: GameDef[] = [
   wordChain,
   anagram,
   ticTacToe,
+  ultimateTicTacToe,
   snake,
 ]
 
