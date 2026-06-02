@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import WordSetterSetup from '../../components/WordSetterSetup'
+import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { stats } from '../../lib/stats'
 import WordGuessBoard, { type GuessRoundResult } from './WordGuessBoard'
 import { formatRoundLine, matchWinner, type RoundSummary } from './word-guess-match'
@@ -50,6 +51,12 @@ export default function WordGuessPassAndPlay({ onExit }: { onExit: () => void })
   const [p2Round, setP2Round] = useState<RoundSummary | null>(null)
   const startTime = useRef(Date.now())
   const gameId = 'word-guess'
+
+  const victoryHeadline =
+    phase === 'results' && p1Round && p2Round
+      ? matchWinner(p1Round, p2Round, 'Player 1', 'Player 2').headline
+      : ''
+  useVictoryConfetti(victoryHeadline)
 
   const restart = () => {
     setPhase('set-p1')

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { stats } from '../../lib/stats'
 import type { GameProps } from '../types'
 import ChainSetterSetup from './ChainSetterSetup'
@@ -43,6 +44,12 @@ export default function WordChainRemote({
   useEffect(() => {
     phaseRef.current = phase
   }, [phase])
+
+  const victoryHeadline =
+    phase === 'results' && myRound && peerRound
+      ? matchChainYouPeer(myRound, peerRound).headline
+      : ''
+  useVictoryConfetti(victoryHeadline)
 
   const resetMatch = useCallback(() => {
     phaseRef.current = 'setup'

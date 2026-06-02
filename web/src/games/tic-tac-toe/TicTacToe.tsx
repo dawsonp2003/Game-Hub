@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { useRoom } from '../../context/RoomContext'
 import type { GameProps } from '../types'
 import { stats } from '../../lib/stats'
@@ -253,6 +254,18 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
       ? sessionWins.guest
       : sessionWins.host
     : 0
+
+  let victoryHeadline = ''
+  if (winner && winner !== 'draw') {
+    if (isAI && winner === 'X') victoryHeadline = 'You win!'
+    else if (isRemote) {
+      const localWin =
+        (winner === 'X' && session?.role === 'host') ||
+        (winner === 'O' && session?.role === 'guest')
+      if (localWin) victoryHeadline = 'You win!'
+    } else if (isPassAndPlay) victoryHeadline = `${winner} wins!`
+  }
+  useVictoryConfetti(victoryHeadline)
 
   const statusText = () => {
     if (winner === 'draw') return "It's a draw!"

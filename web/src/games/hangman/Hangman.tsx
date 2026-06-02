@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import type { GameProps } from '../types'
+import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { stats } from '../../lib/stats'
 import { pickRandomHangmanWord } from '../../lib/words'
 import HangmanLocalBoard, { MAX_WRONG } from './HangmanLocalBoard'
@@ -25,6 +26,8 @@ export default function Hangman({ mode, session, peerAway = false, onExit }: Gam
   const won = answer.split('').every((ch) => guessed.has(ch))
   const lost = wrongCount >= MAX_WRONG
   const finished = won || lost
+
+  useVictoryConfetti(finished && won)
 
   const guess = useCallback(
     (letter: string) => {

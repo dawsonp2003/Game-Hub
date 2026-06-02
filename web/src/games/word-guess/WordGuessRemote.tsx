@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameProps } from '../types'
 import WordSetterSetup from '../../components/WordSetterSetup'
 import '../../components/WordSetterSetup.css'
+import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { stats } from '../../lib/stats'
 import { scoreWordGuess, type LetterResult } from '../../lib/words'
 import WordGuessPeerBoard from './WordGuessPeerBoard'
@@ -73,6 +74,12 @@ export default function WordGuessRemote({
   useEffect(() => {
     phaseRef.current = phase
   }, [phase])
+
+  const victoryHeadline =
+    phase === 'results' && myRound && peerRound
+      ? matchWinnerYouPeer(myRound, peerRound).headline
+      : ''
+  useVictoryConfetti(victoryHeadline)
 
   const resetMatch = useCallback(() => {
     phaseRef.current = 'setup'

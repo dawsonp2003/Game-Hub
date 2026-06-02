@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { GameProps } from '../types'
+import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { stats } from '../../lib/stats'
 import {
   isValidFiveLetterGuess,
@@ -39,8 +40,11 @@ export default function WordGuess({ mode, session, peerAway = false, onExit }: G
   const [message, setMessage] = useState('')
   const [keyStates, setKeyStates] = useState<Record<string, KeyState>>({})
   const [finished, setFinished] = useState(false)
+  const [won, setWon] = useState(false)
   const startTime = useRef(Date.now())
   const gameId = 'word-guess'
+
+  useVictoryConfetti(finished && won)
 
   const [wordLen] = useState(DEFAULT_LEN)
   const rows = useMemo(() => Array.from({ length: MAX_GUESSES }, (_, i) => i), [])
@@ -77,6 +81,7 @@ export default function WordGuess({ mode, session, peerAway = false, onExit }: G
 
     if (won || lost) {
       setFinished(true)
+      setWon(won)
       stats.recordPlay(gameId, Date.now() - startTime.current)
       stats.recordResult(gameId, won ? 'win' : 'loss')
       if (won) stats.recordScore(gameId, MAX_GUESSES - guesses.length)
@@ -122,6 +127,7 @@ export default function WordGuess({ mode, session, peerAway = false, onExit }: G
     setMessage('')
     setKeyStates({})
     setFinished(false)
+    setWon(false)
     startTime.current = Date.now()
   }
 

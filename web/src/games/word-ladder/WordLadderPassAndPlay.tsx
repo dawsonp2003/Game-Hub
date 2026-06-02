@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import WordSetterSetup from '../../components/WordSetterSetup'
+import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { stats } from '../../lib/stats'
 import WordLadderBoard from './WordLadderBoard'
 import {
@@ -52,6 +53,12 @@ export default function WordLadderPassAndPlay({ onExit }: { onExit: () => void }
   const [p2Round, setP2Round] = useState<LadderRoundSummary | null>(null)
   const startTime = useRef(Date.now())
   const gameId = 'word-ladder'
+
+  const victoryHeadline =
+    phase === 'results' && p1Round && p2Round
+      ? matchLadderWinner(p1Round, p2Round, 'Player 1', 'Player 2').headline
+      : ''
+  useVictoryConfetti(victoryHeadline)
 
   const restart = () => {
     setPhase('set-p1')

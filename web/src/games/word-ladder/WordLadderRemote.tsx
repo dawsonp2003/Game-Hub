@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameProps } from '../types'
 import WordSetterSetup from '../../components/WordSetterSetup'
 import '../../components/WordSetterSetup.css'
+import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { stats } from '../../lib/stats'
 import WordLadderBoard from './WordLadderBoard'
 import {
@@ -46,6 +47,12 @@ export default function WordLadderRemote({
   useEffect(() => {
     phaseRef.current = phase
   }, [phase])
+
+  const victoryHeadline =
+    phase === 'results' && myRound && peerRound
+      ? matchLadderYouPeer(myRound, peerRound).headline
+      : ''
+  useVictoryConfetti(victoryHeadline)
 
   const resetMatch = useCallback(() => {
     phaseRef.current = 'setup'

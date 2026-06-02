@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import type { GameProps } from '../types'
+import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { stats } from '../../lib/stats'
 import { isValidLadderStep, pickRandomLadderPuzzle } from '../../lib/words'
 import WordLadderPassAndPlay from './WordLadderPassAndPlay'
@@ -24,6 +25,8 @@ export default function WordLadder({ mode, session, peerAway = false, onExit }: 
   const [winner, setWinner] = useState<string | null>(null)
   const startTime = useRef(Date.now())
   const gameId = 'word-ladder'
+
+  useVictoryConfetti(winner ?? '')
 
   const wordLen = start.length
 

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import WordSetterSetup from '../../components/WordSetterSetup'
+import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { stats } from '../../lib/stats'
 import { MAX_WRONG } from './HangmanFigure'
 import HangmanLocalBoard from './HangmanLocalBoard'
@@ -51,6 +52,12 @@ export default function HangmanPassAndPlay({ onExit }: { onExit: () => void }) {
   const [guessed, setGuessed] = useState<Set<string>>(() => new Set())
   const startTime = useRef(Date.now())
   const gameId = 'hangman'
+
+  const victoryHeadline =
+    phase === 'results' && p1Round && p2Round
+      ? matchHangmanWinner(p1Round, p2Round, 'Player 1', 'Player 2').headline
+      : ''
+  useVictoryConfetti(victoryHeadline)
 
   const restart = () => {
     setPhase('set-p1')
