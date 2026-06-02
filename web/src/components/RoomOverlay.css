@@ -1,0 +1,30 @@
+.room-overlay__modal {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.room-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+}
+
+.room-overlay__dialog {
+  position: relative;
+  width: min(100%, 420px);
+  max-height: min(85vh, 640px);
+  overflow-y: auto;
+  border-radius: 16px;
+  z-index: 1;
+}
+
+.room-overlay__dialog .room-panel {
+  margin-bottom: 0;
+}

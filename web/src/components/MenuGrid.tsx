@@ -4,7 +4,8 @@ import { CATEGORY_LABELS } from '../games/types'
 import { getLiveGames, isMultiplayerGame } from '../games/registry'
 import { useRoom } from '../context/RoomContext'
 import GameCard from './GameCard'
-import RoomPanel from './RoomPanel'
+import RoomMenuButton from './RoomMenuButton'
+import RoomSuggestionChip from './RoomSuggestionChip'
 import './MenuGrid.css'
 
 const ALL = 'all' as const
@@ -35,40 +36,16 @@ export default function MenuGrid() {
     return games.filter((g) => g.category === filter)
   }, [games, filter])
 
-  const showExpandedRoom = room.roomPanelOpen
-
   return (
     <div className="menu-grid">
       <header className="menu-grid__header">
-        <h1 className="menu-grid__title">Game Arcade</h1>
+        <div className="menu-grid__header-row">
+          <h1 className="menu-grid__title">Game Arcade</h1>
+          <RoomMenuButton />
+        </div>
+        <RoomSuggestionChip />
         <p className="menu-grid__subtitle">Pick a game to play</p>
       </header>
-
-      {room.isInRoom && !room.roomPanelOpen && (
-        <button
-          type="button"
-          className="menu-grid__room-chip"
-          onClick={() => room.setRoomPanelOpen(true)}
-        >
-          <span className="menu-grid__room-chip-code">{room.roomCode}</span>
-          <span className={`menu-grid__room-chip-status menu-grid__room-chip-status--${room.status}`}>
-            {room.status === 'connected' ? 'Connected' : room.statusMessage || 'In room'}
-          </span>
-        </button>
-      )}
-
-      {!room.isInRoom && !room.roomPanelOpen && (
-        <button
-          type="button"
-          className={`btn menu-grid__friend-btn ${room.loading && room.pendingAction !== 'restore' ? 'menu-grid__friend-btn--loading' : ''}`}
-          onClick={() => room.setRoomPanelOpen(true)}
-          disabled={room.loading && room.pendingAction !== 'restore'}
-        >
-          {room.loading && room.pendingAction !== 'restore' ? 'Connecting…' : '👥 Play with a friend'}
-        </button>
-      )}
-
-      {showExpandedRoom && <RoomPanel onClose={() => room.setRoomPanelOpen(false)} />}
 
       <div className="menu-grid__filters" role="tablist">
         <button

@@ -31,6 +31,14 @@
   padding-right: 44px;
 }
 
+.game-shell__header:has(.room-menu-btn) .game-shell__title {
+  padding-right: 0;
+}
+
+.game-shell__room-extras {
+  padding: 0 1rem 0.5rem;
+}
+
 .game-shell__main {
   flex: 1;
   display: flex;

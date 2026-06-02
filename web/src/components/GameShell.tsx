@@ -5,6 +5,8 @@ import type { GameDef, GameProps } from '../games/types'
 import type { GameMode } from '../lib/multiplayer/types'
 import { createLocalSession } from '../lib/multiplayer/session'
 import ModePicker from './ModePicker'
+import RoomMenuButton from './RoomMenuButton'
+import RoomSuggestionChip from './RoomSuggestionChip'
 import './GameShell.css'
 
 type ShellPhase = 'mode' | 'playing'
@@ -99,7 +101,14 @@ export default function GameShell({ game }: GameShellProps) {
         <h1 className="game-shell__title">
           <span aria-hidden>{game.icon}</span> {game.name}
         </h1>
+        {(room.isInRoom || room.roomPanelOpen) && <RoomMenuButton />}
       </header>
+
+      {room.role === 'host' && room.suggestion && !room.roomPanelOpen && (
+        <div className="game-shell__room-extras">
+          <RoomSuggestionChip />
+        </div>
+      )}
 
       {room.isInRoom && game.modes.includes('remote') && !room.isPlayReady && (
         <div className="game-shell__room-banner">

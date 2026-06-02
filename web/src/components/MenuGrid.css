@@ -8,57 +8,25 @@
   margin-bottom: 1.25rem;
 }
 
+.menu-grid__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .menu-grid__title {
   margin: 0;
   font-size: 1.75rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .menu-grid__subtitle {
   margin: 0.25rem 0 0;
   color: var(--text-muted);
   font-size: 0.9375rem;
-}
-
-.menu-grid__friend-btn {
-  width: 100%;
-  margin-bottom: 1rem;
-}
-
-.menu-grid__friend-btn--loading {
-  opacity: 0.6;
-  cursor: wait;
-}
-
-.menu-grid__room-chip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  margin-bottom: 1rem;
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--accent);
-  color: var(--text);
-  font: inherit;
-  cursor: pointer;
-}
-
-.menu-grid__room-chip-code {
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  font-variant-numeric: tabular-nums;
-}
-
-.menu-grid__room-chip-status {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-}
-
-.menu-grid__room-chip-status--connected {
-  color: var(--success);
 }
 
 .menu-grid__filters {

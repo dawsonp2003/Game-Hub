@@ -87,7 +87,11 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
   const [winner, setWinner] = useState<Player | 'draw' | null>(null)
   const [sessionWins, setSessionWins] = useState<SessionWins>({ host: 0, guest: 0 })
   const startTime = useRef(Date.now())
+  const roundScoredRef = useRef(false)
+  const boardRef = useRef<Cell[]>(board)
   const gameId = 'tic-tac-toe'
+
+  boardRef.current = board
 
   const isRemote = mode === 'remote'
   const isAI = mode === 'ai'
@@ -106,26 +110,35 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
 
   const recordSessionWin = useCallback(
     (result: Player | 'draw') => {
-      if (!isRemote || result === 'draw') return
+      if (!isRemote || result === 'draw' || session?.role !== 'host') return
+      if (roundScoredRef.current) return
+      roundScoredRef.current = true
 
       setSessionWins((prev) => {
         const next = { ...prev }
         if (result === 'X') next.host += 1
         else next.guest += 1
-        broadcastSessionScore(next)
         return next
       })
     },
-    [isRemote, broadcastSessionScore],
+    [isRemote, session?.role],
   )
 
+  useEffect(() => {
+    if (!isRemote || session?.role !== 'host') return
+    broadcastSessionScore(sessionWins)
+  }, [sessionWins, isRemote, session?.role, broadcastSessionScore])
+
   const resetBoard = useCallback((explicitFirst?: Player) => {
+    roundScoredRef.current = false
+    const empty = Array(9).fill(null) as Cell[]
+    boardRef.current = empty
     setFirstPlayer((prev) => {
       const first = explicitFirst ?? nextFirstPlayer(prev)
       setCurrent(first)
       return first
     })
-    setBoard(Array(9).fill(null))
+    setBoard(empty)
     setWinner(null)
     startTime.current = Date.now()
   }, [])
@@ -142,39 +155,48 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
     return true
   }, [winner, peerAway, room.status, room.isPlayReady, isRemote, isAI, session, current])
 
-  const applyMove = useCallback(
-    (index: number, player: Player, fromNetwork = false) => {
-      setBoard((prev) => {
-        if (prev[index] || winner) return prev
-        const next = [...prev] as Cell[]
-        next[index] = player
-        const w = checkWinner(next)
-        if (w) {
-          setWinner(w)
-          const duration = Date.now() - startTime.current
-          stats.recordPlay(gameId, duration)
-          if (w === 'draw') stats.recordResult(gameId, 'draw')
-          else if (isAI) stats.recordResult(gameId, w === 'X' ? 'win' : 'loss')
-          else if (isRemote) {
-            const won =
-              (w === 'X' && session?.role === 'host') ||
-              (w === 'O' && session?.role === 'guest')
-            stats.recordResult(gameId, won ? 'win' : 'loss')
-            if (!fromNetwork) recordSessionWin(w)
-          }
-        }
-        return next
-      })
-      setCurrent((p) => (p === 'X' ? 'O' : 'X'))
+  const finishRound = useCallback(
+    (w: Player | 'draw') => {
+      setWinner(w)
+      const duration = Date.now() - startTime.current
+      stats.recordPlay(gameId, duration)
+      if (w === 'draw') stats.recordResult(gameId, 'draw')
+      else if (isAI) stats.recordResult(gameId, w === 'X' ? 'win' : 'loss')
+      else if (isRemote) {
+        const won =
+          (w === 'X' && session?.role === 'host') ||
+          (w === 'O' && session?.role === 'guest')
+        stats.recordResult(gameId, won ? 'win' : 'loss')
+        recordSessionWin(w)
+      }
     },
-    [winner, isAI, isRemote, session, recordSessionWin],
+    [isAI, isRemote, session?.role, recordSessionWin],
+  )
+
+  const applyMove = useCallback(
+    (index: number, player: Player) => {
+      if (winner) return
+      const prev = boardRef.current
+      if (prev[index]) return
+
+      const next = [...prev] as Cell[]
+      next[index] = player
+      const outcome = checkWinner(next)
+
+      boardRef.current = next
+      setBoard(next)
+      setCurrent(player === 'X' ? 'O' : 'X')
+
+      if (outcome) finishRound(outcome)
+    },
+    [winner, finishRound],
   )
 
   useEffect(() => {
     if (!session || !isRemote) return
     return session.onMessage((msg) => {
       const m = msg as TttMessage
-      if (m.type === 'move') applyMove(m.index, m.player, true)
+      if (m.type === 'move') applyMove(m.index, m.player)
       if (m.type === 'ttt:reset') resetBoard(m.firstPlayer)
       if (m.type === 'ttt:session-score') setSessionWins(m.wins)
     })
@@ -183,25 +205,23 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
   useEffect(() => {
     if (!isAI || current !== 'O' || winner) return
     const t = setTimeout(() => {
-      setBoard((prev) => {
-        if (checkWinner(prev)) return prev
-        const idx = bestMove(prev, 'O')
-        if (idx < 0) return prev
-        const next = [...prev] as Cell[]
-        next[idx] = 'O'
-        const w = checkWinner(next)
-        if (w) {
-          setWinner(w)
-          const duration = Date.now() - startTime.current
-          stats.recordPlay(gameId, duration)
-          stats.recordResult(gameId, w === 'O' ? 'loss' : w === 'draw' ? 'draw' : 'win')
-        }
-        setCurrent('X')
-        return next
-      })
+      const prev = boardRef.current
+      if (checkWinner(prev)) return
+      const idx = bestMove(prev, 'O')
+      if (idx < 0) return
+
+      const next = [...prev] as Cell[]
+      next[idx] = 'O'
+      const outcome = checkWinner(next)
+
+      boardRef.current = next
+      setBoard(next)
+      setCurrent('X')
+
+      if (outcome) finishRound(outcome)
     }, 400)
     return () => clearTimeout(t)
-  }, [isAI, current, winner, board])
+  }, [isAI, current, winner, finishRound])
 
   const handleCellClick = (index: number) => {
     if (!canPlay() || board[index]) return
