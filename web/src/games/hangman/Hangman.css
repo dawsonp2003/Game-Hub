@@ -18,6 +18,13 @@
   height: 160px;
 }
 
+.hm__setter-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 .hm__status {
   font-size: 0.9375rem;
   font-weight: 600;
@@ -78,4 +85,76 @@
 
 .hm__actions .btn {
   width: 100%;
+}
+
+.hm__player-tag {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.hm__section-label {
+  margin: 0 0 0.5rem;
+  width: 100%;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.hm__section-label--peer {
+  margin-top: 1.25rem;
+}
+
+.hm__peer-watch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.hm__peer-watch-text {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.hm--results {
+  text-align: center;
+}
+
+.hm__results-headline {
+  margin: 1rem 0 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--success);
+}
+
+.hm__results-detail {
+  margin: 0 0 1.25rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.hm__results-scores {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.hm__results-scores li {
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg-card);
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  font-weight: 600;
 }

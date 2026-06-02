@@ -105,12 +105,34 @@
   color: var(--success);
 }
 
+.anag__setter-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.anag__grid-wrap {
+  position: relative;
+  width: min(100%, 300px);
+  margin-bottom: 0.75rem;
+}
+
+.anag__lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
 .anag__grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(var(--anag-cols, 5), 1fr);
   gap: 6px;
-  width: min(100%, 280px);
-  margin-bottom: 0.75rem;
+  width: 100%;
+  position: relative;
+  z-index: 0;
 }
 
 .anag__cell {

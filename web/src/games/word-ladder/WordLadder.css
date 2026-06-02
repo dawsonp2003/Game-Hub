@@ -100,3 +100,73 @@
 .wl__actions .btn {
   width: 100%;
 }
+
+.wl__give-up {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.wl__player-tag {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.wl__section-label {
+  margin: 0 0 0.5rem;
+  width: 100%;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.wl__section-label--peer {
+  margin-top: 1.25rem;
+}
+
+.wl__peer-progress {
+  margin: 0 0 1rem;
+  width: 100%;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.wl--results {
+  text-align: center;
+}
+
+.wl__results-headline {
+  margin: 1rem 0 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--success);
+}
+
+.wl__results-detail {
+  margin: 0 0 1.25rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.wl__results-scores {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.wl__results-scores li {
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg-card);
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}

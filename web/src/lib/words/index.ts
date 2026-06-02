@@ -1,8 +1,21 @@
 import { FIVE_LETTER_SET, FIVE_LETTER_WORDS } from './five-letter'
+import { FIVE_LETTER_GUESS_SET, FIVE_LETTER_GUESS_WORDS } from './word-guess-guesses'
 import { COMMON_WORDS, COMMON_WORD_SET } from './common'
+import { LADDER_DICTIONARY_SET } from './ladder-dictionary'
 import { LADDER_PUZZLES, LADDER_WORD_SET, type LadderPuzzle } from './ladders'
 
-export { FIVE_LETTER_WORDS, FIVE_LETTER_SET, COMMON_WORDS, COMMON_WORD_SET, LADDER_PUZZLES, LADDER_WORD_SET }
+export {
+  FIVE_LETTER_WORDS,
+  FIVE_LETTER_SET,
+  FIVE_LETTER_GUESS_WORDS,
+  FIVE_LETTER_GUESS_SET,
+  COMMON_WORDS,
+  COMMON_WORD_SET,
+  LADDER_PUZZLES,
+  LADDER_WORD_SET,
+  LADDER_DICTIONARY_SET,
+}
+export * from './word-game-setup'
 export type { LadderPuzzle }
 
 export type LetterResult = 'correct' | 'present' | 'absent'
@@ -25,7 +38,7 @@ export function pickRandomFiveLetterWord(): string {
 }
 
 export function isValidFiveLetterGuess(word: string): boolean {
-  return FIVE_LETTER_SET.has(word.toUpperCase())
+  return FIVE_LETTER_GUESS_SET.has(word.toUpperCase())
 }
 
 export function pickRandomHangmanWord(): string {
@@ -55,11 +68,12 @@ export function diffByOneLetter(a: string, b: string): boolean {
   return diffs === 1
 }
 
-export function isValidLadderStep(from: string, to: string, targetLen: number): boolean {
+export function isValidLadderStep(from: string, to: string, targetLen: number, allowAnyWord = false): boolean {
   const word = to.toUpperCase()
   if (word.length !== targetLen) return false
-  if (!LADDER_WORD_SET.has(word) && !COMMON_WORD_SET.has(word)) return false
-  return diffByOneLetter(from, word)
+  if (!diffByOneLetter(from, word)) return false
+  if (allowAnyWord) return true
+  return LADDER_WORD_SET.has(word)
 }
 
 /** Wordle-style feedback for a guess against the answer. */

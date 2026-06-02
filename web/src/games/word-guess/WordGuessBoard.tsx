@@ -1,18 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { GameProps } from '../types'
-import { stats } from '../../lib/stats'
-import {
-  isValidFiveLetterGuess,
-  pickRandomFiveLetterWord,
-  scoreWordGuess,
-  type LetterResult,
-} from '../../lib/words'
-import { KEYS, MAX_GUESSES } from './WordGuessBoard'
-import WordGuessPassAndPlay from './WordGuessPassAndPlay'
-import WordGuessRemote from './WordGuessRemote'
-import './WordGuess.css'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { scoreWordGuess, type LetterResult } from '../../lib/words'
 
-const DEFAULT_LEN = 5
+export const MAX_GUESSES = 6
+
+export const KEYS = [
+  ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+  ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+  ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '⌫'],
+]
 
 type KeyState = LetterResult | 'unused'
 
@@ -23,29 +18,28 @@ function mergeKeyState(prev: KeyState, next: LetterResult): KeyState {
   return 'unused'
 }
 
-export default function WordGuess({ mode, session, peerAway = false, onExit }: GameProps) {
-  if (mode === 'pass-and-play') {
-    return <WordGuessPassAndPlay onExit={onExit} />
-  }
+export interface GuessRoundResult {
+  won: boolean
+  guessCount: number
+}
 
-  if (mode === 'remote') {
-    return <WordGuessRemote session={session} peerAway={peerAway} onExit={onExit} />
-  }
+interface WordGuessBoardProps {
+  answer: string
+  statusHint?: string
+  onComplete: (result: GuessRoundResult) => void
+}
 
-  const [answer, setAnswer] = useState(() => pickRandomFiveLetterWord())
+export default function WordGuessBoard({ answer, statusHint, onComplete }: WordGuessBoardProps) {
+  const wordLen = answer.length
   const [guesses, setGuesses] = useState<string[]>([])
   const [results, setResults] = useState<LetterResult[][]>([])
   const [current, setCurrent] = useState('')
   const [message, setMessage] = useState('')
   const [keyStates, setKeyStates] = useState<Record<string, KeyState>>({})
   const [finished, setFinished] = useState(false)
-  const startTime = useRef(Date.now())
-  const gameId = 'word-guess'
 
-  const [wordLen] = useState(DEFAULT_LEN)
   const rows = useMemo(() => Array.from({ length: MAX_GUESSES }, (_, i) => i), [])
   const cols = useMemo(() => Array.from({ length: wordLen }, (_, i) => i), [wordLen])
-  const requireDict = wordLen === DEFAULT_LEN
 
   const submitGuess = useCallback(() => {
     const guess = current.toUpperCase()
@@ -53,17 +47,14 @@ export default function WordGuess({ mode, session, peerAway = false, onExit }: G
       setMessage(`Need ${wordLen} letters`)
       return
     }
-    if (requireDict && !isValidFiveLetterGuess(guess)) {
-      setMessage('Not in word list')
-      return
-    }
 
     setMessage('')
     const scored = scoreWordGuess(guess, answer)
+    const nextGuesses = [...guesses, guess]
     const won = guess === answer
-    const lost = !won && guesses.length + 1 >= MAX_GUESSES
+    const lost = !won && nextGuesses.length >= MAX_GUESSES
 
-    setGuesses((g) => [...g, guess])
+    setGuesses(nextGuesses)
     setResults((r) => [...r, scored])
     setCurrent('')
     setKeyStates((prev) => {
@@ -77,11 +68,9 @@ export default function WordGuess({ mode, session, peerAway = false, onExit }: G
 
     if (won || lost) {
       setFinished(true)
-      stats.recordPlay(gameId, Date.now() - startTime.current)
-      stats.recordResult(gameId, won ? 'win' : 'loss')
-      if (won) stats.recordScore(gameId, MAX_GUESSES - guesses.length)
+      onComplete({ won, guessCount: nextGuesses.length })
     }
-  }, [answer, current, guesses.length, requireDict, wordLen])
+  }, [answer, current, guesses, onComplete, wordLen])
 
   const onKey = useCallback(
     (key: string) => {
@@ -114,25 +103,14 @@ export default function WordGuess({ mode, session, peerAway = false, onExit }: G
     return () => window.removeEventListener('keydown', handler)
   }, [onKey])
 
-  const newGame = () => {
-    setAnswer(pickRandomFiveLetterWord())
-    setGuesses([])
-    setResults([])
-    setCurrent('')
-    setMessage('')
-    setKeyStates({})
-    setFinished(false)
-    startTime.current = Date.now()
-  }
-
   const statusText = () => {
-    if (finished && guesses[guesses.length - 1] === answer) return 'You got it!'
+    if (finished && guesses[guesses.length - 1] === answer) return 'Got it!'
     if (finished) return `The word was ${answer}`
-    return message || 'Guess the 5-letter word'
+    return message || statusHint || 'Guess the word'
   }
 
   return (
-    <div className="wg">
+    <>
       <p className="wg__status">{statusText()}</p>
 
       <div
@@ -184,17 +162,6 @@ export default function WordGuess({ mode, session, peerAway = false, onExit }: G
           ))}
         </div>
       )}
-
-      {finished && (
-        <div className="wg__actions">
-          <button type="button" className="btn" onClick={newGame}>
-            New Word
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={onExit}>
-            Menu
-          </button>
-        </div>
-      )}
-    </div>
+    </>
   )
 }

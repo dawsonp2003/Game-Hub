@@ -6,7 +6,7 @@ export const wordGuess: GameDef = {
   description: 'Unlimited 5-letter word puzzle. Green, yellow, and gray hints like classic word games.',
   icon: '🟩',
   category: 'word',
-  modes: ['single'],
+  modes: ['single', 'pass-and-play', 'remote'],
   status: 'live',
   load: () => import('./WordGuess'),
 }

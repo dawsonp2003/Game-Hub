@@ -19,6 +19,14 @@ function selectionWord(grid: string[][], path: Point[]): string {
   return path.map((p) => grid[p.r]![p.c]).join('')
 }
 
+function pathLinePoints(path: Point[], cols: number): string {
+  if (path.length < 2) return ''
+  const step = 100 / cols
+  return path
+    .map((p) => `${(p.c + 0.5) * step},${(p.r + 0.5) * step}`)
+    .join(' ')
+}
+
 export default function Anagram({ onExit }: GameProps) {
   const [tab, setTab] = useState<Tab>('scramble')
 
@@ -124,6 +132,7 @@ function WordFindMode({ onExit }: { onExit: () => void }) {
   const gameId = 'anagram'
 
   const allFound = found.length === puzzle.words.length
+  const gridSize = puzzle.grid.length
 
   const toggleCell = useCallback(
     (r: number, c: number) => {
@@ -191,10 +200,11 @@ function WordFindMode({ onExit }: { onExit: () => void }) {
   }
 
   const pathSet = useMemo(() => new Set(path.map((p) => `${p.r},${p.c}`)), [path])
+  const linePoints = pathLinePoints(path, gridSize)
 
   return (
     <div className="anag__panel">
-      <p className="anag__hint">Tap letters in order to spell hidden words</p>
+      <p className="anag__hint">Tap letters in order — lines show your path</p>
 
       <ul className="anag__word-list">
         {puzzle.words.map((word) => (
@@ -204,20 +214,35 @@ function WordFindMode({ onExit }: { onExit: () => void }) {
         ))}
       </ul>
 
-      <div className="anag__grid" role="grid">
-        {puzzle.grid.map((row, r) =>
-          row.map((letter, c) => (
-            <button
-              key={`${r}-${c}`}
-              type="button"
-              className={`anag__cell ${pathSet.has(`${r},${c}`) ? 'selected' : ''} ${found.some((w) => w.includes(letter)) ? '' : ''}`}
-              onClick={() => toggleCell(r, c)}
-              disabled={allFound}
-            >
-              {letter}
-            </button>
-          )),
+      <div className="anag__grid-wrap">
+        {linePoints && (
+          <svg className="anag__lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+            <polyline
+              points={linePoints}
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
         )}
+        <div className="anag__grid" role="grid" style={{ '--anag-cols': gridSize } as React.CSSProperties}>
+          {puzzle.grid.map((row, r) =>
+            row.map((letter, c) => (
+              <button
+                key={`${r}-${c}`}
+                type="button"
+                className={`anag__cell ${pathSet.has(`${r},${c}`) ? 'selected' : ''}`}
+                onClick={() => toggleCell(r, c)}
+                disabled={allFound}
+              >
+                {letter}
+              </button>
+            )),
+          )}
+        </div>
       </div>
 
       {message && <p className={`anag__message ${allFound ? 'ok' : ''}`}>{message}</p>}

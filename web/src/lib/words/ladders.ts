@@ -1,3 +1,5 @@
+import { LADDER_DICTIONARY_SET } from './ladder-dictionary'
+
 export interface LadderPuzzle {
   start: string
   end: string
@@ -26,33 +28,24 @@ export const LADDER_PUZZLES: LadderPuzzle[] = [
   { start: 'RICH', end: 'POOR', minSteps: 4 },
   { start: 'LIVE', end: 'DEAD', minSteps: 4 },
   { start: 'GAME', end: 'PLAY', minSteps: 4 },
+  { start: 'WORD', end: 'WORK', minSteps: 4 },
+  { start: 'BEST', end: 'WORST', minSteps: 5 },
+  { start: 'CARE', end: 'CURE', minSteps: 3 },
+  { start: 'BONE', end: 'STONE', minSteps: 4 },
+  { start: 'RAIN', end: 'SNOW', minSteps: 4 },
+  { start: 'BLUE', end: 'PINK', minSteps: 5 },
+  { start: 'TREE', end: 'LEAF', minSteps: 4 },
+  { start: 'GOLD', end: 'SILVER', minSteps: 6 },
+  { start: 'MIND', end: 'BODY', minSteps: 4 },
+  { start: 'TALE', end: 'MYTH', minSteps: 4 },
+  { start: 'COAL', end: 'GEMS', minSteps: 4 },
+  { start: 'WAVE', end: 'TIDE', minSteps: 3 },
+  { start: 'LION', end: 'CUBS', minSteps: 4 },
+  { start: 'CODE', end: 'DATA', minSteps: 4 },
 ]
 
-/** Words allowed as intermediate ladder steps. */
-const LADDER_WORD_LIST = [
-  'CAT', 'COT', 'DOT', 'DOG', 'COG', 'LOG', 'COLD', 'CORD', 'CARD', 'WARD', 'WARM', 'WORM', 'WORD',
-  'HEAD', 'HEAL', 'TEAL', 'TAIL', 'LOVE', 'LOSE', 'LOST', 'LIST', 'LINT', 'HINT', 'HATE', 'HAVE',
-  'SHIP', 'SHOP', 'CHOP', 'COOP', 'COOK', 'COCK', 'DOCK', 'DUCK', 'DECK', 'FOOD', 'FOOL', 'FOUL',
-  'FOUR', 'FORT', 'WORT', 'WORE', 'WIRE', 'WINE', 'FISH', 'FIST', 'FAST', 'BIRD', 'BARD', 'WOLF',
-  'GOLF', 'GOLD', 'BOLD', 'BOLT', 'BOAT', 'BEAT', 'BEAR', 'FIRE', 'FINE', 'MINE', 'MICE', 'COAL',
-  'MOON', 'NOON', 'SOON', 'SOAR', 'STAR', 'HAND', 'BAND', 'BOND', 'BOOT', 'FOOT', 'KING', 'PING',
-  'PONG', 'POND', 'PAWN', 'COOL', 'WOOD', 'WOOL', 'DARK', 'DART', 'PART', 'PARK', 'PERK', 'PEAK',
-  'GLOW', 'SLOW', 'SLOT', 'SOOT', 'FAST', 'TALL', 'SHORT', 'RICH', 'POOR', 'LIVE', 'DEAD', 'OPEN',
-  'SHUT', 'EAST', 'WEST', 'GAME', 'GALE', 'GATE', 'PATE', 'PAST', 'CAST', 'CASE', 'BASE', 'LAME',
-  'LATE', 'MATE', 'PLAN', 'PLAY', 'SLAM', 'SLAN', 'HALL', 'HAIL', 'FAIL', 'TALL', 'TILL', 'HART',
-  'BART', 'BAST', 'MACE', 'MALE', 'COAT', 'WOOL', 'PEAK', 'PERK', 'BANE', 'BONE', 'LONE', 'LOBE',
-  'LORE', 'WILD', 'WILL', 'WALL', 'HOT', 'HAT', 'HIT', 'BIT', 'BAT', 'BAG', 'BIG', 'DIG', 'FOG',
-  'FIG', 'FIN', 'WIN', 'WIG', 'WAG', 'WAR', 'HOT', 'NOT', 'NUT', 'NET', 'WET', 'WIT', 'SIT', 'SIN',
-  'PIN', 'PAN', 'PAT', 'POT', 'PIT', 'PET', 'PEA', 'SEA', 'TEA', 'TEN', 'MEN', 'PEN', 'HEN', 'HER',
-  'PER', 'PAR', 'BAR', 'CAR', 'FAR', 'MAR', 'TAR', 'WAR', 'WAS', 'HAS', 'HAD', 'BAD', 'BID', 'BUD',
-  'BUN', 'BUT', 'CUT', 'CUP', 'CAP', 'MAP', 'GAP', 'GAS', 'GAG', 'GIG', 'RIG', 'RID', 'RED', 'BED',
-  'BEG', 'LEG', 'LED', 'LID', 'LAD', 'CAD', 'COD', 'CUD', 'CUB', 'TUB', 'TAB', 'TAD', 'TOD', 'TOW',
-  'TWO', 'WHO', 'WHY', 'TRY', 'PRY', 'FRY', 'DRY', 'SKY', 'SPY', 'SHY', 'CRY', 'CAY', 'DAY', 'MAY',
-  'RAY', 'SAY', 'WAY', 'LAY', 'HAY', 'JAY', 'NAY', 'PAY', 'YAY', 'YAP', 'YAM', 'YAK', 'YAW', 'YEA',
-]
-
-export const LADDER_WORD_SET = new Set<string>(
-  [...new Set([...LADDER_WORD_LIST, ...LADDER_PUZZLES.flatMap((p) => [p.start, p.end])])].map((w) =>
-    w.toUpperCase(),
-  ),
-)
+/** All words allowed as ladder steps (offline dictionary + puzzle endpoints). */
+export const LADDER_WORD_SET = new Set<string>([
+  ...LADDER_DICTIONARY_SET,
+  ...LADDER_PUZZLES.flatMap((p) => [p.start, p.end]),
+].map((w) => w.toUpperCase()))

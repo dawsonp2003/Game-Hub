@@ -16,6 +16,13 @@
   text-align: center;
 }
 
+.wg__setter-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 .wg__grid {
   display: flex;
   flex-direction: column;
@@ -30,8 +37,8 @@
 }
 
 .wg__tile {
-  width: 52px;
-  height: 52px;
+  width: min(52px, calc((100vw - 3rem) / var(--wg-cols, 5) - 6px));
+  height: min(52px, calc((100vw - 3rem) / var(--wg-cols, 5) - 6px));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -120,6 +127,87 @@
 
 .wg__actions .btn {
   width: 100%;
+}
+
+.wg--pap {
+  text-align: center;
+}
+
+.wg__player-tag {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.wg__pap-title {
+  margin: 1rem 0 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 800;
+}
+
+.wg__pap-body {
+  margin: 0 1rem 1.5rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.wg__pap-btn {
+  width: 100%;
+  max-width: 320px;
+}
+
+.wg__pap-headline {
+  margin: 1rem 0 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--success);
+}
+
+.wg__pap-detail {
+  margin: 0 0 1.25rem;
+  color: var(--text-muted);
+}
+
+.wg__pap-scores {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.wg__section-label {
+  margin: 0 0 0.5rem;
+  width: 100%;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.wg__section-label--peer {
+  margin-top: 1.25rem;
+}
+
+.wg__peer-progress {
+  margin: 0 0 1rem;
+  width: 100%;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.wg__pap-scores li {
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg-card);
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 
 @media (max-width: 380px) {
