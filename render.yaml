@@ -21,6 +21,12 @@ services:
     envVars:
       - key: VITE_SIGNALING_URL
         value: game-arcade-signaling.onrender.com
+      # Set these in the Render dashboard (Static Site → Environment).
+      # Vite bakes them in at build time, so redeploy after changing them.
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
     routes:
       - type: rewrite
         source: /*

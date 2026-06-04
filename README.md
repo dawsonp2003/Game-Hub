@@ -126,8 +126,43 @@ Work through these over time. Check off as we ship them.
 
 ## Stats & accounts
 
-- **Now:** Stats stored in `localStorage` on the device (`web/src/lib/stats`).
-- **Later:** Supabase auth + Postgres; swap the stats backend without changing games.
+Accounts are **optional** — every game is fully playable as a guest. Guests'
+stats live in `localStorage`; signed-in players also get their plays synced to
+Supabase so stats follow them across devices.
+
+- Auth: email + password (`web/src/context/AuthContext.tsx`).
+- Recording: games call `recordGameEnd(...)` from `web/src/lib/stats`. It always
+  updates the local aggregate and, when signed in, calls the `record_game_session`
+  Postgres function (one atomic write that logs the session and rolls up totals).
+
+### Supabase setup
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. **Connect this Git repo** (Dashboard → Database → *Migrations* / GitHub
+   integration). Supabase reads `supabase/migrations/` and applies them
+   automatically — pushing to the production branch runs them on the project, and
+   pull requests get isolated preview branches. The initial schema lives in
+   `supabase/migrations/20260604000000_init_accounts_and_stats.sql`.
+3. Copy the project URL + anon key (Project Settings → API) into the web app:
+   - Local dev: add to `web/.env` (see `web/.env.example`).
+   - Render: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` on the static
+     site, then redeploy (Vite bakes them in at build time).
+4. (Optional) In Auth settings, turn email confirmation on/off to taste.
+
+If the env vars are blank, the build runs guest-only and hides the account UI.
+
+### Data model
+
+| Table | Purpose |
+|-------|---------|
+| `profiles` | One row per user: username, total games played, created date. |
+| `game_stats` | Per `(user, game)` aggregate: plays, wins/losses/draws, best score, rating. Drives win rate. |
+| `game_sessions` | One row per play: mode, opponent (computer/user/guest/solo), result, turns, avg turn time, start/end. |
+
+A single `game_sessions` table keyed by `game_id` is used instead of one table
+per game, so adding a new game from the roadmap needs **no** schema change. The
+simple win/loss `rating` (human-vs-human only) can be upgraded to a full Elo
+later without touching game code.
 
 ## License
 

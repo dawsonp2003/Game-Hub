@@ -6,6 +6,7 @@ import { useRoom } from '../context/RoomContext'
 import GameCard from './GameCard'
 import RoomMenuButton from './RoomMenuButton'
 import RoomSuggestionChip from './RoomSuggestionChip'
+import AccountButton from './AccountButton'
 import './MenuGrid.css'
 
 const ALL = 'all' as const
@@ -41,7 +42,10 @@ export default function MenuGrid() {
       <header className="menu-grid__header">
         <div className="menu-grid__header-row">
           <h1 className="menu-grid__title">Game Arcade</h1>
-          <RoomMenuButton />
+          <div className="menu-grid__actions">
+            <RoomMenuButton />
+            <AccountButton />
+          </div>
         </div>
         <RoomSuggestionChip />
         <p className="menu-grid__subtitle">Pick a game to play</p>

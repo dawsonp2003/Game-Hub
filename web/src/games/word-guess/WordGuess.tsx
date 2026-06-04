@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { GameProps } from '../types'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
-import { stats } from '../../lib/stats'
+import { recordGameEnd } from '../../lib/stats'
 import {
   isValidFiveLetterGuess,
   pickRandomFiveLetterWord,
@@ -82,11 +82,18 @@ export default function WordGuess({ mode, session, peerAway = false, onExit }: G
     if (won || lost) {
       setFinished(true)
       setWon(won)
-      stats.recordPlay(gameId, Date.now() - startTime.current)
-      stats.recordResult(gameId, won ? 'win' : 'loss')
-      if (won) stats.recordScore(gameId, MAX_GUESSES - guesses.length)
+      const turns = guesses.length + 1
+      recordGameEnd({
+        gameId,
+        mode,
+        result: won ? 'win' : 'loss',
+        score: won ? MAX_GUESSES - guesses.length : undefined,
+        turns,
+        durationMs: Date.now() - startTime.current,
+        startedAt: startTime.current,
+      })
     }
-  }, [answer, current, guesses.length, requireDict, wordLen])
+  }, [answer, current, guesses.length, requireDict, wordLen, mode])
 
   const onKey = useCallback(
     (key: string) => {

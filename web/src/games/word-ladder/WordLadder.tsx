@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import type { GameProps } from '../types'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
-import { stats } from '../../lib/stats'
+import { recordGameEnd } from '../../lib/stats'
 import { isValidLadderStep, pickRandomLadderPuzzle } from '../../lib/words'
 import WordLadderPassAndPlay from './WordLadderPassAndPlay'
 import WordLadderRemote from './WordLadderRemote'
@@ -55,10 +55,16 @@ export default function WordLadder({ mode, session, peerAway = false, onExit }: 
 
     if (word === end) {
       setWinner('You win!')
-      stats.recordPlay(gameId, Date.now() - startTime.current)
-      stats.recordResult(gameId, 'win')
+      recordGameEnd({
+        gameId,
+        mode,
+        result: 'win',
+        durationMs: Date.now() - startTime.current,
+        turns: nextChain.length - 1,
+        startedAt: startTime.current,
+      })
     }
-  }, [chain, end, input, wordLen])
+  }, [chain, end, input, wordLen, mode])
 
   const newPuzzle = () => {
     const puzzle = pickRandomLadderPuzzle()

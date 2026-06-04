@@ -15,6 +15,13 @@
   gap: 0.75rem;
 }
 
+.menu-grid__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 .menu-grid__title {
   margin: 0;
   font-size: 1.75rem;

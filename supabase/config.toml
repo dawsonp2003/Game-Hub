@@ -1,0 +1,8 @@
+# Supabase project config. The GitHub integration reads migrations from
+# supabase/migrations and applies them to the linked project (and preview branches).
+# project_id is just a local label; the dashboard links the real project.
+project_id = "game-arcade"
+
+[db]
+# Postgres major version used by Supabase projects.
+major_version = 15

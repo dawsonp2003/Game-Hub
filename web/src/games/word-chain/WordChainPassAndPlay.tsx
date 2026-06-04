@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
-import { stats } from '../../lib/stats'
+import { recordGameEnd } from '../../lib/stats'
 import ChainSetterSetup from './ChainSetterSetup'
 import WordChainBoard from './WordChainBoard'
 import {
@@ -69,10 +69,19 @@ export default function WordChainPassAndPlay({ onExit }: { onExit: () => void })
     setP1Round(r1)
     setP2Round(r2)
     setPhase('results')
-    stats.recordPlay(gameId, Date.now() - startTime.current)
     const { headline } = matchChainWinner(r1, r2, 'Player 1', 'Player 2')
-    if (headline.includes('Player 1')) stats.recordResult(gameId, 'win')
-    else if (headline.includes('Player 2')) stats.recordResult(gameId, 'loss')
+    const result: 'win' | 'loss' | undefined = headline.includes('Player 1')
+      ? 'win'
+      : headline.includes('Player 2')
+        ? 'loss'
+        : undefined
+    recordGameEnd({
+      gameId,
+      mode: 'pass-and-play',
+      result,
+      durationMs: Date.now() - startTime.current,
+      startedAt: startTime.current,
+    })
   }
 
   if (phase === 'set-p1') {

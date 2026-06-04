@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameProps } from '../types'
-import { stats } from '../../lib/stats'
+import { recordGameEnd, stats } from '../../lib/stats'
 import './Snake.css'
 
 const GRID = 16
@@ -53,9 +53,13 @@ export default function Snake({ onExit }: GameProps) {
   const endGame = useCallback(
     (finalScore: number) => {
       setGameOver(true)
-      const duration = Date.now() - startTime.current
-      stats.recordPlay(gameId, duration)
-      stats.recordScore(gameId, finalScore)
+      recordGameEnd({
+        gameId,
+        mode: 'solo',
+        score: finalScore,
+        durationMs: Date.now() - startTime.current,
+        startedAt: startTime.current,
+      })
     },
     [],
   )

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import WordSetterSetup from '../../components/WordSetterSetup'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
-import { stats } from '../../lib/stats'
+import { recordGameEnd } from '../../lib/stats'
 import WordGuessBoard, { type GuessRoundResult } from './WordGuessBoard'
 import { formatRoundLine, matchWinner, type RoundSummary } from './word-guess-match'
 import './WordGuess.css'
@@ -71,10 +71,19 @@ export default function WordGuessPassAndPlay({ onExit }: { onExit: () => void })
     setP1Round(r1)
     setP2Round(r2)
     setPhase('results')
-    stats.recordPlay(gameId, Date.now() - startTime.current)
     const { headline } = matchWinner(r1, r2, 'Player 1', 'Player 2')
-    if (headline.includes('Player 1')) stats.recordResult(gameId, 'win')
-    else if (headline.includes('Player 2')) stats.recordResult(gameId, 'loss')
+    const result: 'win' | 'loss' | undefined = headline.includes('Player 1')
+      ? 'win'
+      : headline.includes('Player 2')
+        ? 'loss'
+        : undefined
+    recordGameEnd({
+      gameId,
+      mode: 'pass-and-play',
+      result,
+      durationMs: Date.now() - startTime.current,
+      startedAt: startTime.current,
+    })
   }
 
   if (phase === 'set-p1') {

@@ -3,7 +3,7 @@ import type { GameProps } from '../types'
 import WordSetterSetup from '../../components/WordSetterSetup'
 import '../../components/WordSetterSetup.css'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
-import { stats } from '../../lib/stats'
+import { recordGameEnd } from '../../lib/stats'
 import { scoreWordGuess, type LetterResult } from '../../lib/words'
 import WordGuessPeerBoard from './WordGuessPeerBoard'
 import {
@@ -116,10 +116,19 @@ export default function WordGuessRemote({
     setMyRound(mine)
     setPeerRound(peer)
     setPhase('results')
-    stats.recordPlay(gameId, Date.now() - startTime.current)
     const { headline } = matchWinnerYouPeer(mine, peer)
-    if (headline.includes('You win')) stats.recordResult(gameId, 'win')
-    else if (headline.includes('Friend wins')) stats.recordResult(gameId, 'loss')
+    const result: 'win' | 'loss' | undefined = headline.includes('You win')
+      ? 'win'
+      : headline.includes('Friend wins')
+        ? 'loss'
+        : undefined
+    recordGameEnd({
+      gameId,
+      mode: 'remote',
+      result,
+      durationMs: Date.now() - startTime.current,
+      startedAt: startTime.current,
+    })
   }, [])
 
   const checkBothDone = useCallback(

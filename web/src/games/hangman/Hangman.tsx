@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import type { GameProps } from '../types'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
-import { stats } from '../../lib/stats'
+import { recordGameEnd } from '../../lib/stats'
 import { pickRandomHangmanWord } from '../../lib/words'
 import HangmanLocalBoard, { MAX_WRONG } from './HangmanLocalBoard'
 import HangmanPassAndPlay from './HangmanPassAndPlay'
@@ -40,12 +40,18 @@ export default function Hangman({ mode, session, peerAway = false, onExit }: Gam
       const solved = answer.split('').every((ch) => next.has(ch))
 
       if (solved || newWrong >= MAX_WRONG) {
-        stats.recordPlay(gameId, Date.now() - startTime.current)
-        stats.recordResult(gameId, solved ? 'win' : 'loss')
-        if (solved) stats.recordScore(gameId, MAX_WRONG - newWrong)
+        recordGameEnd({
+          gameId,
+          mode,
+          result: solved ? 'win' : 'loss',
+          score: solved ? MAX_WRONG - newWrong : undefined,
+          turns: next.size,
+          durationMs: Date.now() - startTime.current,
+          startedAt: startTime.current,
+        })
       }
     },
-    [answer, finished, guessed],
+    [answer, finished, guessed, mode],
   )
 
   const newGame = () => {

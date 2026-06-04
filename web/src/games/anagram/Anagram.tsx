@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { GameProps } from '../types'
-import { stats } from '../../lib/stats'
+import { recordGameEnd } from '../../lib/stats'
 import { pickRandomAnagramWord, pickWordFindPuzzle, shuffle, type WordFindPuzzle } from '../../lib/words'
 import './Anagram.css'
 
@@ -71,8 +71,13 @@ function ScrambleMode({ onExit }: { onExit: () => void }) {
     if (guess.toUpperCase() === answer) {
       setWon(true)
       setMessage('Correct!')
-      stats.recordPlay(gameId, Date.now() - startTime.current)
-      stats.recordResult(gameId, 'win')
+      recordGameEnd({
+        gameId,
+        mode: 'solo',
+        result: 'win',
+        durationMs: Date.now() - startTime.current,
+        startedAt: startTime.current,
+      })
     } else {
       setMessage('Not quite — try again')
     }
@@ -185,9 +190,14 @@ function WordFindMode({ onExit }: { onExit: () => void }) {
     setMessage(`Found ${word}!`)
 
     if (nextFound.length === puzzle.words.length) {
-      stats.recordPlay(gameId, Date.now() - startTime.current)
-      stats.recordResult(gameId, 'win')
-      stats.recordScore(gameId, nextFound.length)
+      recordGameEnd({
+        gameId,
+        mode: 'solo',
+        result: 'win',
+        score: nextFound.length,
+        durationMs: Date.now() - startTime.current,
+        startedAt: startTime.current,
+      })
     }
   }, [puzzle, path, found])
 

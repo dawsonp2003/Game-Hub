@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { useRoom } from '../../context/RoomContext'
 import type { GameProps } from '../types'
-import { stats } from '../../lib/stats'
+import { recordGameEnd } from '../../lib/stats'
 import UltimateTicTacToeBoard, { statusForState } from './UltimateTicTacToeBoard'
 import {
   applyMove,
@@ -72,12 +72,20 @@ export default function UltimateTicTacToe({ mode, session, peerAway = false, onE
 
   const recordEnd = useCallback(
     (winner: Player | 'draw') => {
-      stats.recordPlay(gameId, Date.now() - startTime.current)
-      if (winner === 'draw') stats.recordResult(gameId, 'draw')
-      else if (isAI) stats.recordResult(gameId, winner === 'X' ? 'win' : 'loss')
-      else if (isRemote) stats.recordResult(gameId, winner === mySymbol ? 'win' : 'loss')
+      let result: 'win' | 'loss' | 'draw' | undefined
+      if (winner === 'draw') result = 'draw'
+      else if (isAI) result = winner === 'X' ? 'win' : 'loss'
+      else if (isRemote) result = winner === mySymbol ? 'win' : 'loss'
+      recordGameEnd({
+        gameId,
+        mode,
+        result,
+        turns: stateRef.current.cells.filter(Boolean).length,
+        durationMs: Date.now() - startTime.current,
+        startedAt: startTime.current,
+      })
     },
-    [isAI, isRemote, mySymbol],
+    [isAI, isRemote, mySymbol, mode],
   )
 
   const playMove = useCallback(

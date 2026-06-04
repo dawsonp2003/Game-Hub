@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { useRoom } from '../../context/RoomContext'
 import type { GameProps } from '../types'
-import { stats } from '../../lib/stats'
+import { recordGameEnd } from '../../lib/stats'
 import './TicTacToe.css'
 
 type Cell = 'X' | 'O' | null
@@ -160,18 +160,26 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
     (w: Player | 'draw') => {
       setWinner(w)
       const duration = Date.now() - startTime.current
-      stats.recordPlay(gameId, duration)
-      if (w === 'draw') stats.recordResult(gameId, 'draw')
-      else if (isAI) stats.recordResult(gameId, w === 'X' ? 'win' : 'loss')
+      let result: 'win' | 'loss' | 'draw' | undefined
+      if (w === 'draw') result = 'draw'
+      else if (isAI) result = w === 'X' ? 'win' : 'loss'
       else if (isRemote) {
         const won =
           (w === 'X' && session?.role === 'host') ||
           (w === 'O' && session?.role === 'guest')
-        stats.recordResult(gameId, won ? 'win' : 'loss')
-        recordSessionWin(w)
+        result = won ? 'win' : 'loss'
       }
+      recordGameEnd({
+        gameId,
+        mode,
+        result,
+        turns: boardRef.current.filter(Boolean).length,
+        durationMs: duration,
+        startedAt: startTime.current,
+      })
+      if (isRemote) recordSessionWin(w)
     },
-    [isAI, isRemote, session?.role, recordSessionWin],
+    [isAI, isRemote, session?.role, recordSessionWin, mode],
   )
 
   const applyMove = useCallback(
