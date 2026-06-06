@@ -196,3 +196,8 @@ $$;
 grant execute on function public.record_game_session(
   text, text, text, text, integer, integer, integer, integer, timestamptz
 ) to authenticated;
+
+grant select on public.profiles to authenticated;
+grant select on public.game_stats to authenticated;
+grant select on public.game_sessions to authenticated;
+grant update on public.profiles to authenticated;

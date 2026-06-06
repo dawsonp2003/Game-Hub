@@ -24,7 +24,7 @@ export default function GameCard({ game }: GameCardProps) {
       }
     }
 
-    navigate(`/play/${game.id}`)
+    navigate(`/game/${game.id}`)
   }
 
   const inRoomMultiplayer = room.isInRoom && supportsRemote

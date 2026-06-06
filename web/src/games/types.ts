@@ -19,7 +19,11 @@ export interface GameDef {
   id: string
   name: string
   description: string
+  /** Short rules / how to play copy for the game info page. */
+  howToPlay: string
   icon: string
+  /** Cover art URL, e.g. `/games/word-guess.png` in `web/public/games/`. Falls back to icon. */
+  image?: string
   category: GameCategory
   modes: GameMode[]
   status: GameStatus

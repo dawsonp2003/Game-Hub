@@ -55,11 +55,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadProfile = useCallback(async (userId: string) => {
     if (!supabase) return
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('id, username, total_games_played, created_at')
       .eq('id', userId)
       .maybeSingle()
+    if (error) {
+      console.warn('[auth] profile load failed', error.message)
+      return
+    }
     if (data) setProfile(mapProfile(data))
   }, [])
 

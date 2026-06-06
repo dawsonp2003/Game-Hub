@@ -4,12 +4,14 @@ import { useRoom } from '../context/RoomContext'
 import type { GameDef, GameProps } from '../games/types'
 import type { GameMode } from '../lib/multiplayer/types'
 import { createLocalSession } from '../lib/multiplayer/session'
-import ModePicker from './ModePicker'
 import RoomMenuButton from './RoomMenuButton'
 import RoomSuggestionChip from './RoomSuggestionChip'
 import './GameShell.css'
 
-type ShellPhase = 'mode' | 'playing'
+type PlayLocationState = {
+  roomLaunch?: boolean
+  mode?: GameMode
+}
 
 interface GameShellProps {
   game: GameDef
@@ -19,20 +21,15 @@ export default function GameShell({ game }: GameShellProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const room = useRoom()
-  const roomLaunch = !!(location.state as { roomLaunch?: boolean } | null)?.roomLaunch
+  const locationState = location.state as PlayLocationState | null
+  const roomLaunch = !!locationState?.roomLaunch
+  const requestedMode = locationState?.mode
 
-  const [phase, setPhase] = useState<ShellPhase>('mode')
   const [mode, setMode] = useState<GameMode | null>(null)
   const [localSession] = useState(() => createLocalSession())
   const [GameComponent, setGameComponent] = useState<ComponentType<GameProps> | null>(null)
 
-  const disabledModes = useMemo(() => {
-    const disabled: GameMode[] = []
-    if (game.modes.includes('remote') && !room.isPlayReady) {
-      disabled.push('remote')
-    }
-    return disabled
-  }, [game.modes, room.isPlayReady])
+  const remoteDisabled = game.modes.includes('remote') && !room.isPlayReady
 
   useEffect(() => {
     let cancelled = false
@@ -46,51 +43,55 @@ export default function GameShell({ game }: GameShellProps) {
 
   useEffect(() => {
     const startRemote =
-      game.modes.includes('remote') &&
-      room.isPlayReady &&
-      (roomLaunch || room.isInRoom)
+      game.modes.includes('remote') && room.isPlayReady && (roomLaunch || room.isInRoom)
 
     if (startRemote) {
       setMode('remote')
-      setPhase('playing')
+      return
+    }
+
+    if (requestedMode && game.modes.includes(requestedMode)) {
+      if (requestedMode === 'remote' && remoteDisabled) {
+        navigate(`/game/${game.id}`, { replace: true })
+        return
+      }
+      setMode(requestedMode)
       return
     }
 
     if (game.modes.length === 1) {
       setMode(game.modes[0]!)
-      setPhase('playing')
       return
     }
 
-    setPhase('mode')
-    setMode(null)
-  }, [roomLaunch, room.isInRoom, game.modes, room.isPlayReady])
+    navigate(`/game/${game.id}`, { replace: true })
+  }, [
+    roomLaunch,
+    room.isInRoom,
+    game.modes,
+    game.id,
+    room.isPlayReady,
+    requestedMode,
+    remoteDisabled,
+    navigate,
+  ])
 
-  const activeSession = mode === 'remote' && room.session ? room.session : localSession
-
-  const handleModeSelect = useCallback((selected: GameMode) => {
-    setMode(selected)
-    setPhase('playing')
-  }, [])
+  const activeSession = useMemo(
+    () => (mode === 'remote' && room.session ? room.session : localSession),
+    [mode, room.session, localSession],
+  )
 
   const handleExit = useCallback(() => {
-    navigate('/')
-  }, [navigate])
+    navigate(`/game/${game.id}`)
+  }, [navigate, game.id])
 
   const handleBack = useCallback(() => {
     if (room.isInRoom) {
       navigate('/')
       return
     }
-    if (phase === 'playing' && game.modes.length > 1) {
-      setPhase('mode')
-      setMode(null)
-      return
-    }
-    navigate('/')
-  }, [phase, game.modes.length, navigate, room.isInRoom])
-
-  const showModePicker = phase === 'mode' && game.modes.length > 1
+    navigate(`/game/${game.id}`)
+  }, [game.id, navigate, room.isInRoom])
 
   return (
     <div className="game-shell">
@@ -117,15 +118,7 @@ export default function GameShell({ game }: GameShellProps) {
       )}
 
       <main className="game-shell__main">
-        {showModePicker && (
-          <ModePicker
-            modes={game.modes}
-            disabledModes={disabledModes}
-            onSelect={handleModeSelect}
-          />
-        )}
-
-        {phase === 'playing' && mode && GameComponent && (
+        {mode && GameComponent && (
           <Suspense fallback={<p className="game-shell__loading">Loading game…</p>}>
             <GameComponent
               mode={mode}
@@ -136,9 +129,7 @@ export default function GameShell({ game }: GameShellProps) {
           </Suspense>
         )}
 
-        {phase === 'playing' && !GameComponent && (
-          <p className="game-shell__loading">Loading game…</p>
-        )}
+        {mode && !GameComponent && <p className="game-shell__loading">Loading game…</p>}
       </main>
     </div>
   )

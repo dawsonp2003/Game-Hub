@@ -1,4 +1,5 @@
 import { supabase } from '../supabase/client'
+import { appendLocalPlayHistory } from './history'
 import { localStatsStore } from './local'
 import type { GameEndInput, GameStats, Opponent } from './types'
 
@@ -52,6 +53,7 @@ export function recordGameEnd(input: GameEndInput): void {
   localStatsStore.recordPlay(input.gameId, input.durationMs)
   if (input.result) localStatsStore.recordResult(input.gameId, input.result)
   if (typeof input.score === 'number') localStatsStore.recordScore(input.gameId, input.score)
+  appendLocalPlayHistory(input)
 
   void syncToCloud(input).catch((err) => {
     console.warn('[stats] cloud sync failed', err)
@@ -71,7 +73,11 @@ export async function fetchCloudStats(): Promise<GameStats[]> {
     )
     .order('last_played_at', { ascending: false })
 
-  if (error || !data) return []
+  if (error) {
+    console.warn('[stats] cloud stats load failed', error.message)
+    return []
+  }
+  if (!data) return []
 
   return data.map((row) => ({
     gameId: row.game_id as string,
@@ -85,4 +91,19 @@ export async function fetchCloudStats(): Promise<GameStats[]> {
     rating: (row.rating as number | null) ?? null,
     lastPlayedAt: (row.last_played_at as string | null) ?? null,
   }))
+}
+
+function playCountsFromLocal(): Record<string, number> {
+  return Object.fromEntries(localStatsStore.getAllStats().map((r) => [r.gameId, r.plays]))
+}
+
+/** Per-game play counts for sorting (cloud when signed in, local otherwise). */
+export async function fetchPlayCounts(): Promise<Record<string, number>> {
+  if (!supabase) return playCountsFromLocal()
+
+  const { data: sessionData } = await supabase.auth.getSession()
+  if (!sessionData.session) return playCountsFromLocal()
+
+  const rows = await fetchCloudStats()
+  return Object.fromEntries(rows.map((r) => [r.gameId, r.plays]))
 }

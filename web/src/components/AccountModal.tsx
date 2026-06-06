@@ -156,13 +156,14 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     let active = true
+    void auth.refreshProfile()
     fetchCloudStats().then((rows) => {
       if (active) setCloudStats(rows)
     })
     return () => {
       active = false
     }
-  }, [])
+  }, [auth.user?.id, auth.refreshProfile])
 
   const saveName = async () => {
     setSavingName(true)

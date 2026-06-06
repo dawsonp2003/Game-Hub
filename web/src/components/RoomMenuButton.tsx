@@ -23,13 +23,13 @@ export default function RoomMenuButton() {
       {room.isInRoom ? (
         <>
           <span className="room-menu-btn__icon" aria-hidden>
-            👥
+            🎉
           </span>
           <span className="room-menu-btn__code">{room.roomCode}</span>
         </>
       ) : (
         <span className="room-menu-btn__icon" aria-hidden>
-          👥
+          🎉
         </span>
       )}
       {(showSuggestion || (room.isInRoom && room.status === 'connected')) && (

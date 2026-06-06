@@ -22,9 +22,8 @@ export default function AccountButton() {
         aria-haspopup="dialog"
       >
         <span className="account-btn__icon" aria-hidden>
-          {auth.user ? '🙂' : '👤'}
+          👤
         </span>
-        <span className="account-btn__label">{label}</span>
       </button>
       {open && <AccountModal onClose={() => setOpen(false)} />}
     </>

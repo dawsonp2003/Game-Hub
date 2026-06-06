@@ -9,17 +9,18 @@
 }
 
 .menu-grid__header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.menu-grid__actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 0.5rem;
-  flex-shrink: 0;
+}
+
+.menu-grid__header-start {
+  justify-self: start;
+}
+
+.menu-grid__header-end {
+  justify-self: end;
 }
 
 .menu-grid__title {
@@ -28,6 +29,8 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.2;
+  text-align: center;
+  justify-self: center;
 }
 
 .menu-grid__subtitle {
