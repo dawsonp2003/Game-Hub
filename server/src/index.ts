@@ -7,6 +7,7 @@ const GRACE_MS = 60_000
 
 interface Slot {
   clientId: string
+  accountId: string | null
   ws: WebSocket | null
   disconnectedAt: number | null
 }
@@ -48,6 +49,25 @@ function slotVacant(slot: Slot): boolean {
   return Date.now() - slot.disconnectedAt > GRACE_MS
 }
 
+function isSlotOccupiedByAccount(slot: Slot, accountId: string, exceptClientId?: string): boolean {
+  if (!slot.accountId || slot.accountId !== accountId) return false
+  if (exceptClientId && slot.clientId === exceptClientId) return false
+  return !!slot.ws || !slotVacant(slot)
+}
+
+function isAccountActiveInRoom(room: Room, accountId: string, exceptClientId?: string): boolean {
+  if (isSlotOccupiedByAccount(room.host, accountId, exceptClientId)) return true
+  if (room.guest && isSlotOccupiedByAccount(room.guest, accountId, exceptClientId)) return true
+  return false
+}
+
+function isAccountActiveAnywhere(accountId: string, exceptClientId?: string): boolean {
+  for (const room of rooms.values()) {
+    if (isAccountActiveInRoom(room, accountId, exceptClientId)) return true
+  }
+  return false
+}
+
 function notifyPeerDisconnected(room: Room, who: 'host' | 'guest', peer: WebSocket | null): void {
   if (!peer) return
   const slot = who === 'host' ? room.host : room.guest!
@@ -77,6 +97,7 @@ function assignToSlot(
   role: 'host' | 'guest',
   clientId: string,
   ws: WebSocket,
+  accountId: string | null,
 ): boolean {
   const slot = role === 'host' ? room.host : room.guest
   if (!slot) return false
@@ -86,11 +107,13 @@ function assignToSlot(
   if (slot.clientId === clientId) {
     slot.ws = ws
     slot.disconnectedAt = null
+    if (accountId) slot.accountId = accountId
     return true
   }
 
   if (slotVacant(slot)) {
     slot.clientId = clientId
+    slot.accountId = accountId
     slot.ws = ws
     slot.disconnectedAt = null
     return true
@@ -123,7 +146,13 @@ function attachClient(ws: WebSocket): void {
   let intentionalLeave = false
 
   ws.on('message', (raw: RawData) => {
-    let msg: { type: string; code?: string; clientId?: string; payload?: unknown }
+    let msg: {
+      type: string
+      code?: string
+      clientId?: string
+      accountId?: string
+      payload?: unknown
+    }
     try {
       msg = JSON.parse(raw.toString()) as typeof msg
     } catch {
@@ -132,6 +161,7 @@ function attachClient(ws: WebSocket): void {
     }
 
     const clientId = msg.clientId?.trim()
+    const accountId = msg.accountId?.trim() || null
     if (!clientId && msg.type !== 'signal') {
       send(ws, { type: 'error', message: 'clientId required' })
       return
@@ -140,10 +170,14 @@ function attachClient(ws: WebSocket): void {
     switch (msg.type) {
       case 'create-room': {
         if (wsRoom.has(ws)) return
+        if (accountId && isAccountActiveAnywhere(accountId)) {
+          send(ws, { type: 'error', message: 'This account is already in a room' })
+          return
+        }
         const code = generateCode()
         const room: Room = {
           code,
-          host: { clientId: clientId!, ws, disconnectedAt: null },
+          host: { clientId: clientId!, accountId, ws, disconnectedAt: null },
           guest: null,
           createdAt: Date.now(),
         }
@@ -166,8 +200,13 @@ function attachClient(ws: WebSocket): void {
           return
         }
 
+        if (accountId && isAccountActiveInRoom(room, accountId, clientId)) {
+          send(ws, { type: 'error', message: 'This account is already in the room' })
+          return
+        }
+
         if (room.host.clientId === clientId) {
-          if (!assignToSlot(room, 'host', clientId!, ws)) {
+          if (!assignToSlot(room, 'host', clientId!, ws, accountId)) {
             send(ws, { type: 'error', message: 'Could not rejoin as host' })
             return
           }
@@ -181,9 +220,14 @@ function attachClient(ws: WebSocket): void {
           break
         }
 
+        if (accountId && room.host.accountId === accountId) {
+          send(ws, { type: 'error', message: 'This account is already in the room' })
+          return
+        }
+
         if (!room.guest) {
-          room.guest = { clientId: clientId!, ws, disconnectedAt: null }
-        } else if (!assignToSlot(room, 'guest', clientId!, ws)) {
+          room.guest = { clientId: clientId!, accountId, ws, disconnectedAt: null }
+        } else if (!assignToSlot(room, 'guest', clientId!, ws, accountId)) {
           send(ws, { type: 'error', message: 'Room is full' })
           return
         }

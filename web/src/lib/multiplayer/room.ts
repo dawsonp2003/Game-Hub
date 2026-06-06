@@ -1,5 +1,6 @@
 import type { ConnectionState, MultiplayerSession, SessionRole } from './session'
 import { SignalingClient } from './signaling'
+import { supabase } from '../supabase/client'
 
 function buildIceServers(): RTCIceServer[] {
   const servers: RTCIceServer[] = [
@@ -41,6 +42,13 @@ export function getClientId(): string {
     sessionStorage.setItem(STORAGE_KEY, id)
   }
   return id
+}
+
+/** Signed-in Supabase user id, when accounts are enabled. */
+export async function getAccountId(): Promise<string | null> {
+  if (!supabase) return null
+  const { data } = await supabase.auth.getSession()
+  return data.session?.user.id ?? null
 }
 
 export function saveRoomPrefs(code: string, role: SessionRole): void {
@@ -361,7 +369,8 @@ export class RoomConnection {
       this.emit({ type: 'room-code', code, role: 'host' })
     })
 
-    this.signaling.send({ type: 'create-room', clientId: getClientId() })
+    const accountId = await getAccountId()
+    this.signaling.send({ type: 'create-room', clientId: getClientId(), accountId })
     await pending
   }
 
@@ -389,7 +398,8 @@ export class RoomConnection {
       this.emit({ type: 'room-code', code: msg.code, role: msg.role })
     })
 
-    this.signaling.send({ type: 'join-room', code: normalized, clientId: getClientId() })
+    const accountId = await getAccountId()
+    this.signaling.send({ type: 'join-room', code: normalized, clientId: getClientId(), accountId })
     await pending
   }
 

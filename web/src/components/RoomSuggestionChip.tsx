@@ -19,7 +19,7 @@ export default function RoomSuggestionChip() {
       <span className="room-suggest-chip__title">
         Friend suggests <strong>{room.suggestion.gameName}</strong>
       </span>
-      <span className="room-suggest-chip__action">Tap to play →</span>
+      <span className="room-suggest-chip__action">Tap to view →</span>
     </button>
   )
 }

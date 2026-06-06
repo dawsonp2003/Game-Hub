@@ -55,7 +55,7 @@ function RoomNavigator() {
 
   useEffect(() => {
     if (!pendingLaunch) return
-    navigate(`/play/${pendingLaunch.gameId}`, { state: { roomLaunch: true } })
+    navigate(`/play/${pendingLaunch.gameId}`, { state: { roomLaunch: true, mode: 'remote' } })
     clearPendingLaunch()
   }, [pendingLaunch, navigate, clearPendingLaunch])
 
@@ -301,7 +301,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
         gameName: game.name,
       })
       setSuggestion(null)
-      navigate(`/play/${gameId}`, { state: { roomLaunch: true } })
+      navigate(`/play/${gameId}`, { state: { roomLaunch: true, mode: 'remote' } })
     },
     [session, navigate],
   )
@@ -319,8 +319,9 @@ export function RoomProvider({ children }: { children: ReactNode }) {
 
   const acceptSuggestion = useCallback(() => {
     if (!suggestion || roleRef.current !== 'host') return
-    launchGame(suggestion.gameId)
-  }, [suggestion, launchGame])
+    setSuggestion(null)
+    navigate(`/game/${suggestion.gameId}`)
+  }, [suggestion, navigate])
 
   const dismissSuggestion = useCallback(() => {
     setSuggestion(null)

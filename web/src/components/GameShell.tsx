@@ -25,7 +25,6 @@ export default function GameShell({ game }: GameShellProps) {
   const location = useLocation()
   const room = useRoom()
   const locationState = location.state as PlayLocationState | null
-  const roomLaunch = !!locationState?.roomLaunch
   const requestedMode = locationState?.mode
   const requestedComputerOptions = locationState?.computerOptions
 
@@ -33,8 +32,6 @@ export default function GameShell({ game }: GameShellProps) {
   const [computerOptions, setComputerOptions] = useState<ComputerOptions | undefined>()
   const [localSession] = useState(() => createLocalSession())
   const [GameComponent, setGameComponent] = useState<ComponentType<GameProps> | null>(null)
-
-  const remoteDisabled = game.modes.includes('remote') && !room.isPlayReady
 
   useEffect(() => {
     let cancelled = false
@@ -47,19 +44,16 @@ export default function GameShell({ game }: GameShellProps) {
   }, [game])
 
   useEffect(() => {
-    const startRemote =
-      game.modes.includes('remote') && room.isPlayReady && (roomLaunch || room.isInRoom)
-
-    if (startRemote) {
+    if (requestedMode === 'remote' && game.modes.includes('remote')) {
+      if (!room.isPlayReady) {
+        navigate(`/game/${game.id}`, { replace: true })
+        return
+      }
       setMode('remote')
       return
     }
 
     if (requestedMode && game.modes.includes(requestedMode)) {
-      if (requestedMode === 'remote' && remoteDisabled) {
-        navigate(`/game/${game.id}`, { replace: true })
-        return
-      }
       setMode(requestedMode)
       if (requestedMode === 'ai' && game.computerOptions) {
         setComputerOptions(resolveComputerOptions(game.computerOptions, requestedComputerOptions))
@@ -76,14 +70,11 @@ export default function GameShell({ game }: GameShellProps) {
 
     navigate(`/game/${game.id}`, { replace: true })
   }, [
-    roomLaunch,
-    room.isInRoom,
     game.modes,
     game.id,
     room.isPlayReady,
     requestedMode,
     requestedComputerOptions,
-    remoteDisabled,
     game.computerOptions,
     navigate,
   ])
