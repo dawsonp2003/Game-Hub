@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { useRoom } from '../../context/RoomContext'
+import { getComputerOptionString } from '../../lib/computer-options'
 import type { GameProps } from '../types'
 import { recordGameEnd } from '../../lib/stats'
+import { parseTttDifficulty, pickAiMove } from './ai'
 import './TicTacToe.css'
 
 type Cell = 'X' | 'O' | null
@@ -34,43 +36,6 @@ function checkWinner(board: Cell[]): Player | 'draw' | null {
   return null
 }
 
-function bestMove(board: Cell[], ai: Player): number {
-  const opponent: Player = ai === 'X' ? 'O' : 'X'
-
-  const minimax = (b: Cell[], isMax: boolean): number => {
-    const w = checkWinner(b)
-    if (w === ai) return 1
-    if (w === opponent) return -1
-    if (w === 'draw') return 0
-
-    const player = isMax ? ai : opponent
-    let best = isMax ? -Infinity : Infinity
-
-    for (let i = 0; i < 9; i++) {
-      if (b[i]) continue
-      const next = [...b] as Cell[]
-      next[i] = player
-      const score = minimax(next, !isMax)
-      best = isMax ? Math.max(best, score) : Math.min(best, score)
-    }
-    return best
-  }
-
-  let bestScore = -Infinity
-  let move = -1
-  for (let i = 0; i < 9; i++) {
-    if (board[i]) continue
-    const next = [...board] as Cell[]
-    next[i] = ai
-    const score = minimax(next, false)
-    if (score > bestScore) {
-      bestScore = score
-      move = i
-    }
-  }
-  return move
-}
-
 type TttMessage =
   | { type: 'move'; index: number; player: Player }
   | { type: 'ttt:reset'; firstPlayer: Player }
@@ -80,7 +45,13 @@ function nextFirstPlayer(current: Player): Player {
   return current === 'X' ? 'O' : 'X'
 }
 
-export default function TicTacToe({ mode, session, peerAway = false, onExit }: GameProps) {
+export default function TicTacToe({
+  mode,
+  session,
+  peerAway = false,
+  computerOptions,
+  onExit,
+}: GameProps) {
   const room = useRoom()
   const [board, setBoard] = useState<Cell[]>(Array(9).fill(null))
   const [firstPlayer, setFirstPlayer] = useState<Player>('X')
@@ -97,6 +68,10 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
   const isRemote = mode === 'remote'
   const isAI = mode === 'ai'
   const isPassAndPlay = mode === 'pass-and-play'
+  const aiDifficulty = useMemo(
+    () => parseTttDifficulty(getComputerOptionString(computerOptions, 'difficulty', 'hard')),
+    [computerOptions],
+  )
 
   const mySymbol: Player = isRemote && session?.role === 'guest' ? 'O' : 'X'
 
@@ -216,7 +191,7 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
     const t = setTimeout(() => {
       const prev = boardRef.current
       if (checkWinner(prev)) return
-      const idx = bestMove(prev, 'O')
+      const idx = pickAiMove(prev, 'O', aiDifficulty)
       if (idx < 0) return
 
       const next = [...prev] as Cell[]
@@ -230,7 +205,7 @@ export default function TicTacToe({ mode, session, peerAway = false, onExit }: G
       if (outcome) finishRound(outcome)
     }, 400)
     return () => clearTimeout(t)
-  }, [isAI, current, winner, finishRound])
+  }, [isAI, current, winner, finishRound, aiDifficulty])
 
   const handleCellClick = (index: number) => {
     if (!canPlay() || board[index]) return

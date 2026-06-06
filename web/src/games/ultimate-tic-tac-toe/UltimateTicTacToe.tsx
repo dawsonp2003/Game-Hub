@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { useRoom } from '../../context/RoomContext'
+import { getComputerOptionString } from '../../lib/computer-options'
 import type { GameProps } from '../types'
 import { recordGameEnd } from '../../lib/stats'
 import UltimateTicTacToeBoard, { statusForState } from './UltimateTicTacToeBoard'
 import {
   applyMove,
   createInitialState,
+  parseUtttDifficulty,
   pickAiMove,
   type Player,
   type UtttMove,
@@ -22,7 +24,13 @@ function nextFirst(current: Player): Player {
   return current === 'X' ? 'O' : 'X'
 }
 
-export default function UltimateTicTacToe({ mode, session, peerAway = false, onExit }: GameProps) {
+export default function UltimateTicTacToe({
+  mode,
+  session,
+  peerAway = false,
+  computerOptions,
+  onExit,
+}: GameProps) {
   const room = useRoom()
   const [firstPlayer, setFirstPlayer] = useState<Player>('X')
   const [state, setState] = useState<UtttState>(() => createInitialState('X'))
@@ -36,6 +44,10 @@ export default function UltimateTicTacToe({ mode, session, peerAway = false, onE
   const isRemote = mode === 'remote'
   const isAI = mode === 'ai'
   const isPassAndPlay = mode === 'pass-and-play'
+  const aiDifficulty = useMemo(
+    () => parseUtttDifficulty(getComputerOptionString(computerOptions, 'difficulty', 'normal')),
+    [computerOptions],
+  )
 
   const mySymbol: Player = isRemote && session?.role === 'guest' ? 'O' : 'X'
 
@@ -140,11 +152,11 @@ export default function UltimateTicTacToe({ mode, session, peerAway = false, onE
   useEffect(() => {
     if (!isAI || state.current !== 'O' || state.macroWinner) return
     const t = setTimeout(() => {
-      const move = pickAiMove(stateRef.current, 'O')
+      const move = pickAiMove(stateRef.current, 'O', aiDifficulty)
       if (move) playMove(move)
     }, 450)
     return () => clearTimeout(t)
-  }, [isAI, state.current, state.macroWinner, playMove])
+  }, [isAI, state.current, state.macroWinner, playMove, aiDifficulty])
 
   const reset = () => {
     const first = nextFirst(firstPlayer)

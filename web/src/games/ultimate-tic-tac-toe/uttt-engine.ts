@@ -141,47 +141,115 @@ export function boardLabel(board: number): string {
 }
 
 /** Shallow AI: win/block locally & on macro, then heuristic. */
-export function pickAiMove(state: UtttState, ai: Player): UtttMove | null {
+export type UtttDifficulty = 'easy' | 'normal' | 'hard'
+
+function evaluateMove(state: UtttState, m: UtttMove, ai: Player): number {
+  const opponent: Player = ai === 'X' ? 'O' : 'X'
+  const next = applyMove(state, m)
+  let score = 0
+  if (next.macroWinner === ai) score += 1000
+  if (next.macroWinner === opponent) score -= 1000
+
+  const miniAfter = next.miniOutcomes[m.board]
+  if (miniAfter === ai) score += 120
+  if (miniAfter === opponent) score += 80
+
+  const sentBoard = m.cell
+  const sentOutcome = next.miniOutcomes[sentBoard]
+  if (sentOutcome === opponent) score -= 40
+  if (sentOutcome === ai) score += 25
+
+  if (m.cell === 4) score += 8
+  if (m.board === 4) score += 4
+
+  const oppMoves = getLegalMoves(next)
+  for (const om of oppMoves) {
+    const afterOpp = applyMove(next, om)
+    if (afterOpp.macroWinner === opponent) score -= 200
+    if (afterOpp.miniOutcomes[om.board] === opponent) score -= 15
+  }
+
+  return score
+}
+
+function pickAiMoveNormal(state: UtttState, ai: Player): UtttMove | null {
   const moves = getLegalMoves(state)
   if (moves.length === 0) return null
-  const opponent: Player = ai === 'X' ? 'O' : 'X'
-
-  const scoreMove = (m: UtttMove): number => {
-    const next = applyMove(state, m)
-    let score = 0
-    if (next.macroWinner === ai) score += 1000
-    if (next.macroWinner === opponent) score -= 1000
-
-    const miniAfter = next.miniOutcomes[m.board]
-    if (miniAfter === ai) score += 120
-    if (miniAfter === opponent) score += 80
-
-    const sentBoard = m.cell
-    const sentOutcome = next.miniOutcomes[sentBoard]
-    if (sentOutcome === opponent) score -= 40
-    if (sentOutcome === ai) score += 25
-
-    if (m.cell === 4) score += 8
-    if (m.board === 4) score += 4
-
-    const oppMoves = getLegalMoves(next)
-    for (const om of oppMoves) {
-      const afterOpp = applyMove(next, om)
-      if (afterOpp.macroWinner === opponent) score -= 200
-      if (afterOpp.miniOutcomes[om.board] === opponent) score -= 15
-    }
-
-    return score
-  }
 
   let best = moves[0]!
   let bestScore = -Infinity
   for (const m of moves) {
-    const s = scoreMove(m) + Math.random() * 0.5
+    const s = evaluateMove(state, m, ai) + Math.random() * 0.5
     if (s > bestScore) {
       bestScore = s
       best = m
     }
   }
   return best
+}
+
+function pickAiMoveHard(state: UtttState, ai: Player): UtttMove | null {
+  const moves = getLegalMoves(state)
+  if (moves.length === 0) return null
+  const opponent: Player = ai === 'X' ? 'O' : 'X'
+
+  for (const m of moves) {
+    if (applyMove(state, m).macroWinner === ai) return m
+  }
+
+  let best = moves[0]!
+  let bestScore = -Infinity
+
+  for (const m of moves) {
+    const next = applyMove(state, m)
+    if (next.macroWinner === ai) return m
+
+    const replies = getLegalMoves(next)
+    let worstReply = -Infinity
+
+    if (replies.length === 0) {
+      worstReply = 0
+    } else {
+      for (const r of replies) {
+        const after = applyMove(next, r)
+        if (after.macroWinner === opponent) {
+          worstReply = 1000
+          break
+        }
+        worstReply = Math.max(worstReply, evaluateMove(next, r, opponent))
+      }
+    }
+
+    const score = evaluateMove(state, m, ai) - worstReply
+    if (score > bestScore) {
+      bestScore = score
+      best = m
+    }
+  }
+
+  return best
+}
+
+export function parseUtttDifficulty(value: string | undefined): UtttDifficulty {
+  if (value === 'easy' || value === 'normal' || value === 'hard') return value
+  return 'normal'
+}
+
+export function pickAiMove(
+  state: UtttState,
+  ai: Player,
+  difficulty: UtttDifficulty = 'normal',
+): UtttMove | null {
+  const moves = getLegalMoves(state)
+  if (moves.length === 0) return null
+
+  switch (difficulty) {
+    case 'easy':
+      return moves[Math.floor(Math.random() * moves.length)]!
+    case 'hard':
+      return pickAiMoveHard(state, ai)
+    case 'normal':
+    default:
+      return pickAiMoveNormal(state, ai)
+  }
 }

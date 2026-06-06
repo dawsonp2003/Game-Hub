@@ -4,7 +4,7 @@ export const MODE_LABELS: Record<GameMode, string> = {
   single: 'Solo',
   ai: 'Computer',
   'pass-and-play': 'Pass & Play',
-  remote: 'Remote (room)',
+  remote: 'Online',
 }
 
 export const MODE_HINTS: Record<GameMode, string> = {

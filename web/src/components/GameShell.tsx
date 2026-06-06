@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useRoom } from '../context/RoomContext'
 import type { GameDef, GameProps } from '../games/types'
 import type { GameMode } from '../lib/multiplayer/types'
+import type { ComputerOptions } from '../lib/computer-options'
+import { resolveComputerOptions } from '../lib/computer-options'
 import { createLocalSession } from '../lib/multiplayer/session'
 import RoomMenuButton from './RoomMenuButton'
 import RoomSuggestionChip from './RoomSuggestionChip'
@@ -11,6 +13,7 @@ import './GameShell.css'
 type PlayLocationState = {
   roomLaunch?: boolean
   mode?: GameMode
+  computerOptions?: ComputerOptions
 }
 
 interface GameShellProps {
@@ -24,8 +27,10 @@ export default function GameShell({ game }: GameShellProps) {
   const locationState = location.state as PlayLocationState | null
   const roomLaunch = !!locationState?.roomLaunch
   const requestedMode = locationState?.mode
+  const requestedComputerOptions = locationState?.computerOptions
 
   const [mode, setMode] = useState<GameMode | null>(null)
+  const [computerOptions, setComputerOptions] = useState<ComputerOptions | undefined>()
   const [localSession] = useState(() => createLocalSession())
   const [GameComponent, setGameComponent] = useState<ComponentType<GameProps> | null>(null)
 
@@ -56,6 +61,11 @@ export default function GameShell({ game }: GameShellProps) {
         return
       }
       setMode(requestedMode)
+      if (requestedMode === 'ai' && game.computerOptions) {
+        setComputerOptions(resolveComputerOptions(game.computerOptions, requestedComputerOptions))
+      } else {
+        setComputerOptions(undefined)
+      }
       return
     }
 
@@ -72,7 +82,9 @@ export default function GameShell({ game }: GameShellProps) {
     game.id,
     room.isPlayReady,
     requestedMode,
+    requestedComputerOptions,
     remoteDisabled,
+    game.computerOptions,
     navigate,
   ])
 
@@ -124,6 +136,7 @@ export default function GameShell({ game }: GameShellProps) {
               mode={mode}
               session={activeSession}
               peerAway={mode === 'remote' && room.status === 'peer-away'}
+              computerOptions={mode === 'ai' ? computerOptions : undefined}
               onExit={handleExit}
             />
           </Suspense>

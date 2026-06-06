@@ -1,4 +1,5 @@
 import type { GameDef } from '../types'
+import { ultimateTicTacToeComputerOptions } from './computer-options'
 
 export const ultimateTicTacToe: GameDef = {
   id: 'ultimate-tic-tac-toe',
@@ -10,6 +11,7 @@ export const ultimateTicTacToe: GameDef = {
   icon: '⊞',
   category: 'board-2p',
   modes: ['ai', 'pass-and-play', 'remote'],
+  computerOptions: ultimateTicTacToeComputerOptions,
   status: 'live',
   load: () => import('./UltimateTicTacToe'),
 }

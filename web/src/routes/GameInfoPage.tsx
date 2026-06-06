@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRoom } from '../context/RoomContext'
 import type { GameDef } from '../games/types'
-import { MODE_HINTS, MODE_LABELS, type GameMode } from '../lib/multiplayer/types'
+import { MODE_LABELS, type GameMode } from '../lib/multiplayer/types'
 import {
   loadGameProfile,
   modeDisplayLabel,
@@ -12,6 +12,14 @@ import {
   type GameProfileData,
 } from '../lib/stats'
 import GameCover from '../components/GameCover'
+import ComputerOptionsModal from '../components/ComputerOptionsModal'
+import type { ComputerOptions } from '../lib/computer-options'
+import {
+  formatComputerOptionsSummary,
+  loadSavedComputerOptions,
+  resolveComputerOptions,
+  saveComputerOptions,
+} from '../lib/computer-options'
 import './GameInfoPage.css'
 
 interface GameInfoPageProps {
@@ -20,37 +28,71 @@ interface GameInfoPageProps {
 
 function pickDefaultMode(
   game: GameDef,
-  disabledModes: GameMode[],
-  inRoomRemote: boolean,
+  onlineReady: boolean,
   favoriteMode: GameMode | null = null,
 ): GameMode {
-  if (inRoomRemote && game.modes.includes('remote')) return 'remote'
-  if (favoriteMode && !disabledModes.includes(favoriteMode)) return favoriteMode
-  return game.modes.find((m) => !disabledModes.includes(m)) ?? game.modes[0]!
+  if (onlineReady && game.modes.includes('remote')) return 'remote'
+  if (favoriteMode && game.modes.includes(favoriteMode)) return favoriteMode
+  return game.modes[0]!
 }
 
 export default function GameInfoPage({ game }: GameInfoPageProps) {
   const navigate = useNavigate()
   const room = useRoom()
   const supportsRemote = game.modes.includes('remote')
-  const inRoomRemote = room.isInRoom && room.isPlayReady && supportsRemote
-
-  const disabledModes = useMemo(() => {
-    const disabled: GameMode[] = []
-    if (supportsRemote && !room.isPlayReady) disabled.push('remote')
-    return disabled
-  }, [supportsRemote, room.isPlayReady])
+  const onlineReady = room.isInRoom && room.isPlayReady && supportsRemote
 
   const [profile, setProfile] = useState<GameProfileData | null>(null)
   const favoriteApplied = useRef(false)
 
   const [selectedMode, setSelectedMode] = useState<GameMode>(() =>
-    pickDefaultMode(game, disabledModes, inRoomRemote),
+    pickDefaultMode(game, false),
   )
+  const [computerOptionsOpen, setComputerOptionsOpen] = useState(false)
+  const [computerOptions, setComputerOptions] = useState<ComputerOptions>(() =>
+    game.computerOptions
+      ? resolveComputerOptions(game.computerOptions, loadSavedComputerOptions(game.id) ?? undefined)
+      : {},
+  )
+
+  const onlineSelected = selectedMode === 'remote' && supportsRemote
+
+  const computerOptionsSummary = useMemo(() => {
+    if (!game.computerOptions) return ''
+    return formatComputerOptionsSummary(game.computerOptions, computerOptions)
+  }, [game.computerOptions, computerOptions])
+
+  const primaryAction = useMemo(() => {
+    if (onlineSelected) {
+      if (!room.isInRoom) {
+        return { label: 'Create a room', disabled: false }
+      }
+      if (!room.isPlayReady) {
+        return { label: 'Not enough players', disabled: true }
+      }
+      if (room.role === 'guest') {
+        return { label: 'Suggest to host', disabled: false }
+      }
+      return { label: 'Play', disabled: false }
+    }
+    return { label: 'Play', disabled: false }
+  }, [
+    onlineSelected,
+    room.isInRoom,
+    room.isPlayReady,
+    room.role,
+  ])
 
   useEffect(() => {
     favoriteApplied.current = false
   }, [game.id])
+
+  useEffect(() => {
+    if (!game.computerOptions) return
+    setComputerOptions(
+      resolveComputerOptions(game.computerOptions, loadSavedComputerOptions(game.id) ?? undefined),
+    )
+  }, [game.id, game.computerOptions])
 
   useEffect(() => {
     let active = true
@@ -59,44 +101,47 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
       setProfile(data)
       if (!favoriteApplied.current) {
         const favorite = gameModeFromFavorite(data.favoriteMode, game.modes) as GameMode | null
-        setSelectedMode(pickDefaultMode(game, disabledModes, inRoomRemote, favorite))
+        setSelectedMode(pickDefaultMode(game, onlineReady, favorite))
         favoriteApplied.current = true
       }
     })
     return () => {
       active = false
     }
-  }, [game.id, game.modes, disabledModes, inRoomRemote])
+  }, [game.id, game.modes, onlineReady])
 
-  useEffect(() => {
-    if (disabledModes.includes(selectedMode)) {
-      const favorite = profile
-        ? (gameModeFromFavorite(profile.favoriteMode, game.modes) as GameMode | null)
-        : null
-      setSelectedMode(pickDefaultMode(game, disabledModes, inRoomRemote, favorite))
-    }
-  }, [disabledModes, selectedMode, game, inRoomRemote, profile])
+  const startPlay = (options?: ComputerOptions) => {
+    navigate(`/play/${game.id}`, {
+      state: { mode: selectedMode, computerOptions: options },
+    })
+  }
 
   const handlePlay = () => {
-    if (inRoomRemote) {
-      if (room.role === 'host') {
-        room.launchGame(game.id)
+    if (onlineSelected) {
+      if (!room.isInRoom) {
+        room.setRoomPanelOpen(true)
         return
       }
+      if (!room.isPlayReady) return
       if (room.role === 'guest') {
         room.suggestGame(game.id)
         return
       }
+      room.launchGame(game.id)
+      return
     }
-    navigate(`/play/${game.id}`, { state: { mode: selectedMode } })
+    if (selectedMode === 'ai' && game.computerOptions) {
+      startPlay(computerOptions)
+      return
+    }
+    startPlay()
   }
 
-  const playLabel =
-    inRoomRemote && room.role === 'guest'
-      ? 'Suggest to host'
-      : inRoomRemote && room.role === 'host'
-        ? 'Play with room'
-        : 'Play'
+  const handleComputerOptionsConfirm = (options: ComputerOptions) => {
+    saveComputerOptions(game.id, options)
+    setComputerOptions(options)
+    setComputerOptionsOpen(false)
+  }
 
   return (
     <div className="game-info">
@@ -125,7 +170,6 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
           <div className="game-info__modes" role="radiogroup" aria-label="Game mode">
             <span className="game-info__modes-label">Mode</span>
             {game.modes.map((m) => {
-              const disabled = disabledModes.includes(m)
               const selected = selectedMode === m
               return (
                 <button
@@ -135,20 +179,29 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
                   aria-checked={selected}
                   className={`game-info__mode-chip${selected ? ' game-info__mode-chip--selected' : ''}`}
                   onClick={() => setSelectedMode(m)}
-                  disabled={disabled}
-                  title={disabled ? MODE_HINTS[m] : undefined}
                 >
                   {MODE_LABELS[m]}
                 </button>
               )
             })}
           </div>
-          {supportsRemote && !room.isPlayReady && (
-            <p className="game-info__mode-hint">Join a room from the home page to play online.</p>
+          {selectedMode === 'ai' && game.computerOptions && (
+            <button
+              type="button"
+              className="game-info__computer-settings"
+              onClick={() => setComputerOptionsOpen(true)}
+            >
+              {computerOptionsSummary}
+            </button>
           )}
 
-          <button type="button" className="btn game-info__play" onClick={handlePlay}>
-            {playLabel}
+          <button
+            type="button"
+            className="btn game-info__play"
+            onClick={handlePlay}
+            disabled={primaryAction.disabled}
+          >
+            {primaryAction.label}
           </button>
         </section>
 
@@ -156,6 +209,15 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
           <GameInfoAside game={game} selectedMode={selectedMode} profile={profile} />
         </aside>
       </div>
+
+      {computerOptionsOpen && game.computerOptions && (
+        <ComputerOptionsModal
+          config={game.computerOptions}
+          initialValues={computerOptions}
+          onConfirm={handleComputerOptionsConfirm}
+          onClose={() => setComputerOptionsOpen(false)}
+        />
+      )}
     </div>
   )
 }

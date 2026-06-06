@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import type { ComputerOptions, ComputerOptionsConfig } from '../lib/computer-options'
 import type { GameMode } from '../lib/multiplayer/types'
 import type { MultiplayerSession } from '../lib/multiplayer/session'
 
@@ -13,6 +14,8 @@ export interface GameProps {
   session: MultiplayerSession | null
   peerAway?: boolean
   onExit: () => void
+  /** Options chosen in the computer setup modal when mode is `ai`. */
+  computerOptions?: ComputerOptions
 }
 
 export interface GameDef {
@@ -26,6 +29,8 @@ export interface GameDef {
   image?: string
   category: GameCategory
   modes: GameMode[]
+  /** Popup fields shown before starting vs computer (difficulty, word length, etc.). */
+  computerOptions?: ComputerOptionsConfig
   status: GameStatus
   load: () => Promise<{ default: ComponentType<GameProps> }>
 }
