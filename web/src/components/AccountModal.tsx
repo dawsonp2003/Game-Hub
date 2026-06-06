@@ -62,7 +62,9 @@ function AuthPanel() {
       if (mode === 'signup') {
         await auth.signUp(email, password, username)
         if (!auth.user) {
-          setNotice('Account created. If email confirmation is on, check your inbox, then sign in.')
+          setNotice(
+            'Account created. Email confirmation is enabled — check your inbox for a confirmation link, then sign in.',
+          )
           setMode('signin')
         }
       } else {

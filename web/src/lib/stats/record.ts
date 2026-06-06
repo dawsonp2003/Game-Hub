@@ -2,6 +2,11 @@ import { supabase } from '../supabase/client'
 import { localStatsStore } from './local'
 import type { GameEndInput, GameStats, Opponent } from './types'
 
+/** Whole minutes for Supabase storage (rounded from client ms timing). */
+function msToMinutes(ms: number): number {
+  return Math.max(0, Math.round(ms / 60_000))
+}
+
 function opponentForMode(mode: string): Opponent {
   switch (mode) {
     case 'ai':
@@ -22,7 +27,7 @@ async function syncToCloud(input: GameEndInput): Promise<void> {
   if (!data.session) return
 
   const turns = input.turns && input.turns > 0 ? input.turns : null
-  const avgTurnMs = turns ? Math.round(input.durationMs / turns) : null
+  const avgTurnSec = turns ? Math.round(input.durationMs / turns / 1000) : null
   const startedAt = input.startedAt ?? Date.now() - input.durationMs
 
   await supabase.rpc('record_game_session', {
@@ -32,8 +37,8 @@ async function syncToCloud(input: GameEndInput): Promise<void> {
     p_result: input.result ?? null,
     p_score: input.score ?? null,
     p_turns: turns,
-    p_avg_turn_ms: avgTurnMs,
-    p_duration_ms: Math.round(input.durationMs),
+    p_avg_turn_sec: avgTurnSec,
+    p_duration_min: msToMinutes(input.durationMs),
     p_started_at: new Date(startedAt).toISOString(),
   })
 }
@@ -62,7 +67,7 @@ export async function fetchCloudStats(): Promise<GameStats[]> {
   const { data, error } = await supabase
     .from('game_stats')
     .select(
-      'game_id, plays, wins, losses, draws, total_play_time_ms, best_score, rating, last_played_at',
+      'game_id, plays, wins, losses, draws, total_play_time_min, best_score, rating, last_played_at',
     )
     .order('last_played_at', { ascending: false })
 
@@ -74,7 +79,8 @@ export async function fetchCloudStats(): Promise<GameStats[]> {
     wins: row.wins as number,
     losses: row.losses as number,
     draws: row.draws as number,
-    totalPlayTimeMs: row.total_play_time_ms as number,
+    totalPlayTimeMin: row.total_play_time_min as number,
+    totalPlayTimeMs: (row.total_play_time_min as number) * 60_000,
     bestScore: (row.best_score as number | null) ?? null,
     rating: (row.rating as number | null) ?? null,
     lastPlayedAt: (row.last_played_at as string | null) ?? null,

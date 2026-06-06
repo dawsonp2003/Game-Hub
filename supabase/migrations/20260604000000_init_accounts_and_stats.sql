@@ -33,7 +33,7 @@ create table if not exists public.game_stats (
   wins                integer not null default 0,
   losses              integer not null default 0,
   draws               integer not null default 0,
-  total_play_time_ms  bigint  not null default 0,
+  total_play_time_min integer not null default 0,
   best_score          integer,
   rating              integer not null default 1000,
   last_played_at      timestamptz,
@@ -54,14 +54,13 @@ create table if not exists public.game_sessions (
   result        text,                     -- win | loss | draw | null (no win concept)
   score         integer,
   turns         integer,
-  avg_turn_ms   integer,
-  duration_ms   integer not null default 0,
-  started_at    timestamptz not null,
-  ended_at      timestamptz not null default now()
+  avg_turn_sec  integer,
+  duration_min  integer not null default 0,
+  started_at    timestamptz not null
 );
 
 create index if not exists game_sessions_user_game_idx
-  on public.game_sessions (user_id, game_id, ended_at desc);
+  on public.game_sessions (user_id, game_id, started_at desc);
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security: every row is private to its owner.
@@ -134,8 +133,8 @@ create or replace function public.record_game_session(
   p_result      text default null,
   p_score       integer default null,
   p_turns       integer default null,
-  p_avg_turn_ms integer default null,
-  p_duration_ms integer default 0,
+  p_avg_turn_sec integer default null,
+  p_duration_min integer default 0,
   p_started_at  timestamptz default now()
 )
 returns void
@@ -153,10 +152,10 @@ begin
 
   insert into public.game_sessions (
     user_id, game_id, mode, opponent, result, score, turns,
-    avg_turn_ms, duration_ms, started_at, ended_at
+    avg_turn_sec, duration_min, started_at
   ) values (
     uid, p_game_id, p_mode, p_opponent, p_result, p_score, p_turns,
-    p_avg_turn_ms, coalesce(p_duration_ms, 0), p_started_at, now()
+    p_avg_turn_sec, greatest(0, coalesce(p_duration_min, 0)), p_started_at
   );
 
   -- Simple rating: only adjust for human-vs-human results.
@@ -167,13 +166,13 @@ begin
 
   insert into public.game_stats as gs (
     user_id, game_id, plays, wins, losses, draws,
-    total_play_time_ms, best_score, rating, last_played_at
+    total_play_time_min, best_score, rating, last_played_at
   ) values (
     uid, p_game_id, 1,
     case when p_result = 'win'  then 1 else 0 end,
     case when p_result = 'loss' then 1 else 0 end,
     case when p_result = 'draw' then 1 else 0 end,
-    coalesce(p_duration_ms, 0),
+    greatest(0, coalesce(p_duration_min, 0)),
     p_score,
     1000 + rating_delta,
     now()
@@ -183,7 +182,7 @@ begin
     wins               = gs.wins   + case when p_result = 'win'  then 1 else 0 end,
     losses             = gs.losses + case when p_result = 'loss' then 1 else 0 end,
     draws              = gs.draws  + case when p_result = 'draw' then 1 else 0 end,
-    total_play_time_ms = gs.total_play_time_ms + coalesce(p_duration_ms, 0),
+    total_play_time_min = gs.total_play_time_min + greatest(0, coalesce(p_duration_min, 0)),
     best_score         = greatest(coalesce(gs.best_score, p_score), coalesce(p_score, gs.best_score)),
     rating             = greatest(0, gs.rating + rating_delta),
     last_played_at     = now();

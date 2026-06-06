@@ -9,6 +9,9 @@ export interface GameStats {
   wins: number
   losses: number
   draws: number
+  /** Cloud stats: whole minutes stored in Postgres. */
+  totalPlayTimeMin?: number
+  /** Milliseconds — local guest stats; cloud rows derive this from minutes for display. */
   totalPlayTimeMs: number
   bestScore: number | null
   /** Simple human-vs-human rating; only present for cloud stats. */
