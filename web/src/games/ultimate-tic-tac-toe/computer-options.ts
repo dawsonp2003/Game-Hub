@@ -10,7 +10,12 @@ export const ultimateTicTacToeComputerOptions: ComputerOptionsConfig = {
       choices: [
         { value: 'easy', label: 'Easy', description: 'Random legal moves' },
         { value: 'normal', label: 'Normal', description: 'Smart heuristics and basic tactics' },
-        { value: 'hard', label: 'Hard', description: 'Looks ahead and punishes mistakes' },
+        { value: 'hard', label: 'Hard', description: 'Looks one move ahead and punishes mistakes' },
+        {
+          value: 'expert',
+          label: 'Expert',
+          description: 'Fast opening, then deep search (up to ~8s) in the endgame',
+        },
       ],
       default: 'normal',
     },

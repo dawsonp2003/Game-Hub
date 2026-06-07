@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
+import { useIsMobileViewport } from '../../hooks/usePinchPanZoom'
 import { useRoom } from '../../context/RoomContext'
 import { getComputerOptionString } from '../../lib/computer-options'
 import type { GameProps } from '../types'
 import { recordGameEnd } from '../../lib/stats'
 import UltimateTicTacToeBoard, { statusForState } from './UltimateTicTacToeBoard'
+import { expertUsesDeepSearch } from './uttt-ai'
 import {
   applyMove,
   createInitialState,
@@ -32,6 +34,7 @@ export default function UltimateTicTacToe({
   onExit,
 }: GameProps) {
   const room = useRoom()
+  const isMobile = useIsMobileViewport()
   const [firstPlayer, setFirstPlayer] = useState<Player>('X')
   const [state, setState] = useState<UtttState>(() => createInitialState('X'))
   const [lastMove, setLastMove] = useState<UtttMove | null>(null)
@@ -95,9 +98,10 @@ export default function UltimateTicTacToe({
         turns: stateRef.current.cells.filter(Boolean).length,
         durationMs: Date.now() - startTime.current,
         startedAt: startTime.current,
+        computerOptions: isAI ? computerOptions : undefined,
       })
     },
-    [isAI, isRemote, mySymbol, mode],
+    [isAI, isRemote, mySymbol, mode, computerOptions],
   )
 
   const playMove = useCallback(
@@ -151,10 +155,11 @@ export default function UltimateTicTacToe({
 
   useEffect(() => {
     if (!isAI || state.current !== 'O' || state.macroWinner) return
+    const thinkMs = aiDifficulty === 'expert' ? 80 : 450
     const t = setTimeout(() => {
       const move = pickAiMove(stateRef.current, 'O', aiDifficulty)
       if (move) playMove(move)
-    }, 450)
+    }, thinkMs)
     return () => clearTimeout(t)
   }, [isAI, state.current, state.macroWinner, playMove, aiDifficulty])
 
@@ -180,7 +185,12 @@ export default function UltimateTicTacToe({
 
   const playerTag = () => {
     if (isPassAndPlay && !state.macroWinner) return `${state.current}'s turn`
-    if (isAI && !state.macroWinner) return state.current === 'X' ? 'Your turn (X)' : 'Computer thinking…'
+    if (isAI && !state.macroWinner) {
+      if (state.current === 'X') return 'Your turn (X)'
+      return aiDifficulty === 'expert' && expertUsesDeepSearch(state, 'O')
+        ? 'Computer thinking deeply…'
+        : 'Computer thinking…'
+    }
     return null
   }
 
@@ -212,7 +222,9 @@ export default function UltimateTicTacToe({
         onCellClick={(move) => playMove(move)}
       />
 
-      <p className="uttt__hint">Pinch or drag to pan the board on small screens.</p>
+      {isMobile && (
+        <p className="uttt__hint">Pinch to zoom and drag to pan the board.</p>
+      )}
 
       {state.macroWinner && (
         <div className="uttt__actions">

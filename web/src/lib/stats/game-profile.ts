@@ -23,7 +23,7 @@ async function fetchAllCloudSessions(gameId: string): Promise<PlayHistoryEntry[]
 
   const { data, error } = await supabase
     .from('game_sessions')
-    .select('mode, result, score, started_at')
+    .select('mode, result, score, turns, started_at')
     .eq('game_id', gameId)
     .order('started_at', { ascending: false })
 
@@ -36,6 +36,7 @@ async function fetchAllCloudSessions(gameId: string): Promise<PlayHistoryEntry[]
     mode: row.mode as string,
     result: (row.result as PlayHistoryEntry['result']) ?? undefined,
     score: (row.score as number | null) ?? undefined,
+    turns: (row.turns as number | null) ?? undefined,
     playedAt: row.started_at as string,
   }))
 }
@@ -55,6 +56,6 @@ export async function loadGameProfile(
     favoriteMode,
     sessions,
     recent,
-    recentLabels: recent.map(formatHistoryLine),
+    recentLabels: recent.map((e) => formatHistoryLine(e, gameId)),
   }
 }

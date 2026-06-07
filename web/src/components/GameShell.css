@@ -28,11 +28,17 @@
   font-weight: 700;
   flex: 1;
   text-align: center;
-  padding-right: 44px;
 }
 
-.game-shell__header:has(.room-menu-btn) .game-shell__title {
-  padding-right: 0;
+.game-shell__info {
+  font-size: 1.125rem;
+  font-weight: 700;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .game-shell__room-extras {
@@ -43,6 +49,8 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .game-shell__loading {

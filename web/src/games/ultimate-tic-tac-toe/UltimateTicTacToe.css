@@ -40,6 +40,19 @@
   touch-action: pan-x pan-y;
 }
 
+.uttt__viewport--mobile {
+  overflow: hidden;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.uttt__zoom-layer {
+  transform-origin: center center;
+  will-change: transform;
+}
+
 .uttt__macro {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -47,6 +60,22 @@
   width: min(100%, 420px);
   margin: 0 auto;
   --uttt-cell: clamp(22px, 7.5vw, 36px);
+}
+
+@media (max-width: 767px) {
+  .uttt {
+    padding-bottom: 0.5rem;
+  }
+
+  .uttt__macro {
+    --uttt-cell: clamp(20px, 6.5vw, 28px);
+    width: auto;
+  }
+
+  .uttt__cell {
+    min-width: 22px;
+    min-height: 22px;
+  }
 }
 
 .uttt__mini {

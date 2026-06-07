@@ -1,3 +1,5 @@
+import type { ComputerOptions } from '../computer-options'
+
 export type GameResult = 'win' | 'loss' | 'draw'
 
 /** Who the player faced. Derived from the game mode. */
@@ -31,6 +33,8 @@ export interface GameEndInput {
   durationMs: number
   /** Epoch ms when the round started (defaults to now - duration). */
   startedAt?: number
+  /** Computer mode settings (difficulty, etc.) when mode is `ai`. */
+  computerOptions?: ComputerOptions
 }
 
 export interface StatsStore {

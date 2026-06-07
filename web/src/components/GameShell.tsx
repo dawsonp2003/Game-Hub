@@ -6,6 +6,7 @@ import type { GameMode } from '../lib/multiplayer/types'
 import type { ComputerOptions } from '../lib/computer-options'
 import { resolveComputerOptions } from '../lib/computer-options'
 import { createLocalSession } from '../lib/multiplayer/session'
+import GameHowToModal from './GameHowToModal'
 import RoomMenuButton from './RoomMenuButton'
 import RoomSuggestionChip from './RoomSuggestionChip'
 import './GameShell.css'
@@ -30,6 +31,7 @@ export default function GameShell({ game }: GameShellProps) {
 
   const [mode, setMode] = useState<GameMode | null>(null)
   const [computerOptions, setComputerOptions] = useState<ComputerOptions | undefined>()
+  const [howToOpen, setHowToOpen] = useState(false)
   const [localSession] = useState(() => createLocalSession())
   const [GameComponent, setGameComponent] = useState<ComponentType<GameProps> | null>(null)
 
@@ -105,6 +107,14 @@ export default function GameShell({ game }: GameShellProps) {
         <h1 className="game-shell__title">
           <span aria-hidden>{game.icon}</span> {game.name}
         </h1>
+        <button
+          type="button"
+          className="game-shell__info btn-ghost"
+          onClick={() => setHowToOpen(true)}
+          aria-label="How to play"
+        >
+          ℹ
+        </button>
         {(room.isInRoom || room.roomPanelOpen) && <RoomMenuButton />}
       </header>
 
@@ -135,6 +145,14 @@ export default function GameShell({ game }: GameShellProps) {
 
         {mode && !GameComponent && <p className="game-shell__loading">Loading game…</p>}
       </main>
+
+      {howToOpen && (
+        <GameHowToModal
+          gameName={game.name}
+          howToPlay={game.howToPlay}
+          onClose={() => setHowToOpen(false)}
+        />
+      )}
     </div>
   )
 }

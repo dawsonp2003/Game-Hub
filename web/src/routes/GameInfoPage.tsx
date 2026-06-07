@@ -7,7 +7,7 @@ import {
   loadGameProfile,
   modeDisplayLabel,
   sessionsForMode,
-  computeSessionStats,
+  computeGameStatDisplay,
   gameModeFromFavorite,
   type GameProfileData,
 } from '../lib/stats'
@@ -260,9 +260,8 @@ function GameInfoAside({
   profile: GameProfileData | null
 }) {
   const modeLabel = modeDisplayLabel(selectedMode)
-  const modeStats = profile
-    ? computeSessionStats(sessionsForMode(profile.sessions, selectedMode))
-    : null
+  const modeEntries = profile ? sessionsForMode(profile.sessions, selectedMode) : []
+  const statItems = profile ? computeGameStatDisplay(game.id, modeEntries) : []
 
   return (
     <>
@@ -272,16 +271,16 @@ function GameInfoAside({
         <h3 className="game-info__stats-title">Your stats in {modeLabel}</h3>
         {profile === null ? (
           <p className="game-info__muted">Loading…</p>
-        ) : modeStats && modeStats.plays > 0 ? (
-          <ul className="game-info__stat-list">
-            <li>
-              <span className="game-info__stat-value">{modeStats.plays}</span>
-              <span className="game-info__stat-label">Games played</span>
-            </li>
-            <li>
-              <span className="game-info__stat-value">{modeStats.wins}</span>
-              <span className="game-info__stat-label">Wins</span>
-            </li>
+        ) : statItems.length > 0 ? (
+          <ul
+            className={`game-info__stat-list${statItems.length > 2 ? ' game-info__stat-list--wide' : ''}`}
+          >
+            {statItems.map((item) => (
+              <li key={item.label}>
+                <span className="game-info__stat-value">{item.value}</span>
+                <span className="game-info__stat-label">{item.label}</span>
+              </li>
+            ))}
           </ul>
         ) : (
           <p className="game-info__muted">No games in {modeLabel} yet — hit Play to start!</p>

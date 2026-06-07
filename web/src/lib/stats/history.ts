@@ -4,6 +4,7 @@ export interface PlayHistoryEntry {
   mode: string
   result?: GameResult
   score?: number
+  turns?: number
   playedAt: string
 }
 
@@ -30,6 +31,7 @@ export function appendLocalPlayHistory(input: GameEndInput): void {
     mode: input.mode,
     result: input.result,
     score: input.score,
+    turns: input.turns,
     playedAt: new Date().toISOString(),
   }
   const list = [entry, ...(data[input.gameId] ?? [])].slice(0, MAX_RECENT)
@@ -117,15 +119,22 @@ export function computeSessionStats(entries: PlayHistoryEntry[]): SessionStats {
   }
 }
 
-export function formatHistoryLine(entry: PlayHistoryEntry): string {
+export function formatHistoryLine(entry: PlayHistoryEntry, gameId?: string): string {
   const date = new Date(entry.playedAt).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
   })
   const mode = modeDisplayLabel(entry.mode)
+  let turnSuffix = ''
+  if (typeof entry.turns === 'number' && entry.turns > 0) {
+    if (gameId === 'word-ladder') turnSuffix = ` · ${entry.turns} steps`
+    else if (gameId === 'hangman') turnSuffix = ` · ${entry.turns} letters`
+    else if (gameId === 'word-guess') turnSuffix = ` · ${entry.turns} guesses`
+  }
+
   if (entry.result) {
     const outcome = entry.result === 'win' ? 'Win' : entry.result === 'loss' ? 'Loss' : 'Draw'
-    return `${date} · ${mode} · ${outcome}`
+    return `${date} · ${mode} · ${outcome}${turnSuffix}`
   }
   if (typeof entry.score === 'number') {
     return `${date} · ${mode} · Score ${entry.score}`

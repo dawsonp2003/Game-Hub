@@ -1,3 +1,5 @@
+import { pickAiMoveExpert } from './uttt-ai'
+
 export type Player = 'X' | 'O'
 export type Cell = Player | null
 export type MiniOutcome = Player | 'draw' | null
@@ -141,9 +143,9 @@ export function boardLabel(board: number): string {
 }
 
 /** Shallow AI: win/block locally & on macro, then heuristic. */
-export type UtttDifficulty = 'easy' | 'normal' | 'hard'
+export type UtttDifficulty = 'easy' | 'normal' | 'hard' | 'expert'
 
-function evaluateMove(state: UtttState, m: UtttMove, ai: Player): number {
+export function scoreMoveHeuristic(state: UtttState, m: UtttMove, ai: Player): number {
   const opponent: Player = ai === 'X' ? 'O' : 'X'
   const next = applyMove(state, m)
   let score = 0
@@ -179,7 +181,7 @@ function pickAiMoveNormal(state: UtttState, ai: Player): UtttMove | null {
   let best = moves[0]!
   let bestScore = -Infinity
   for (const m of moves) {
-    const s = evaluateMove(state, m, ai) + Math.random() * 0.5
+    const s = scoreMoveHeuristic(state, m, ai) + Math.random() * 0.5
     if (s > bestScore) {
       bestScore = s
       best = m
@@ -188,7 +190,7 @@ function pickAiMoveNormal(state: UtttState, ai: Player): UtttMove | null {
   return best
 }
 
-function pickAiMoveHard(state: UtttState, ai: Player): UtttMove | null {
+export function pickAiMoveHard(state: UtttState, ai: Player): UtttMove | null {
   const moves = getLegalMoves(state)
   if (moves.length === 0) return null
   const opponent: Player = ai === 'X' ? 'O' : 'X'
@@ -216,11 +218,11 @@ function pickAiMoveHard(state: UtttState, ai: Player): UtttMove | null {
           worstReply = 1000
           break
         }
-        worstReply = Math.max(worstReply, evaluateMove(next, r, opponent))
+        worstReply = Math.max(worstReply, scoreMoveHeuristic(next, r, opponent))
       }
     }
 
-    const score = evaluateMove(state, m, ai) - worstReply
+    const score = scoreMoveHeuristic(state, m, ai) - worstReply
     if (score > bestScore) {
       bestScore = score
       best = m
@@ -231,7 +233,7 @@ function pickAiMoveHard(state: UtttState, ai: Player): UtttMove | null {
 }
 
 export function parseUtttDifficulty(value: string | undefined): UtttDifficulty {
-  if (value === 'easy' || value === 'normal' || value === 'hard') return value
+  if (value === 'easy' || value === 'normal' || value === 'hard' || value === 'expert') return value
   return 'normal'
 }
 
@@ -248,6 +250,8 @@ export function pickAiMove(
       return moves[Math.floor(Math.random() * moves.length)]!
     case 'hard':
       return pickAiMoveHard(state, ai)
+    case 'expert':
+      return pickAiMoveExpert(state, ai)
     case 'normal':
     default:
       return pickAiMoveNormal(state, ai)

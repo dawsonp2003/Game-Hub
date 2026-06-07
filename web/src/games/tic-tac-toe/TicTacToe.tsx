@@ -151,10 +151,11 @@ export default function TicTacToe({
         turns: boardRef.current.filter(Boolean).length,
         durationMs: duration,
         startedAt: startTime.current,
+        computerOptions: isAI ? computerOptions : undefined,
       })
       if (isRemote) recordSessionWin(w)
     },
-    [isAI, isRemote, session?.role, recordSessionWin, mode],
+    [isAI, isRemote, session?.role, recordSessionWin, mode, computerOptions],
   )
 
   const applyMove = useCallback(

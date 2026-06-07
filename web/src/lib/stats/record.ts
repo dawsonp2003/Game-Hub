@@ -41,6 +41,10 @@ async function syncToCloud(input: GameEndInput): Promise<void> {
     p_avg_turn_sec: avgTurnSec,
     p_duration_min: msToMinutes(input.durationMs),
     p_started_at: new Date(startedAt).toISOString(),
+    p_computer_options:
+      input.mode === 'ai' && input.computerOptions && Object.keys(input.computerOptions).length > 0
+        ? input.computerOptions
+        : null,
   })
 }
 
