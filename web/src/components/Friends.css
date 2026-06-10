@@ -1,0 +1,176 @@
+.account-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.account-tab {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.account-tab--active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(108, 92, 231, 0.12);
+}
+
+.account-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1rem;
+  height: 1rem;
+  margin-left: 0.25rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+
+.friends-search {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.friends-search__input {
+  flex: 1;
+}
+
+.friends-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.friends-list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.friends-list__row--invite {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.friends-list__info {
+  min-width: 0;
+}
+
+.friends-list__name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.friends-list__meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.friends-list__actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.friends-list__row--invite .friends-list__actions {
+  justify-content: flex-end;
+}
+
+.friends-detail__back {
+  margin-bottom: 0.5rem;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.875rem;
+}
+
+.friends-detail__name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.friends-detail__meta {
+  margin: 0.25rem 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.friends-detail__section {
+  margin-bottom: 1rem;
+}
+
+.friends-detail__overall {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.friends-h2h {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.friends-h2h__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.friends-h2h__score {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.friends-invite-games {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.friends-detail__remove {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.async-new-modal__friend-select {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 0.9375rem;
+}

@@ -4,7 +4,7 @@ import { useIsMobileViewport } from '../../hooks/usePinchPanZoom'
 import { useRoom } from '../../context/RoomContext'
 import { getComputerOptionString } from '../../lib/computer-options'
 import type { GameProps } from '../types'
-import type { AsyncMatchSession } from '../../lib/multiplayer/async-session'
+import { AsyncMatchSession } from '../../lib/multiplayer/async-session'
 import { recordGameEnd } from '../../lib/stats'
 import UltimateTicTacToeBoard, { statusForState } from './UltimateTicTacToeBoard'
 import { expertUsesDeepSearch } from './uttt-ai'
@@ -109,6 +109,10 @@ export default function UltimateTicTacToe({
         durationMs: Date.now() - startTime.current,
         startedAt: startTime.current,
         computerOptions: isAI ? computerOptions : undefined,
+        opponentUserId:
+          isAsync && session instanceof AsyncMatchSession
+            ? session.opponentUserId() ?? undefined
+            : undefined,
       })
     },
     [isAI, isNetworked, isAsync, session, mySymbol, mode, computerOptions],

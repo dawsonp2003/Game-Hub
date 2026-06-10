@@ -35,6 +35,8 @@ export interface GameEndInput {
   startedAt?: number
   /** Computer mode settings (difficulty, etc.) when mode is `ai`. */
   computerOptions?: ComputerOptions
+  /** Opponent account UUID when known (async / remote with signed-in peer). */
+  opponentUserId?: string
 }
 
 export interface StatsStore {

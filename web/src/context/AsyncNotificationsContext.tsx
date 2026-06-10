@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react'
 import { useAsyncNotifications } from '../hooks/useAsyncNotifications'
+import { useSocialNotifications } from '../hooks/useSocialNotifications'
 import type { AsyncMatchSummary } from '../lib/async/types'
 
 interface AsyncNotificationsValue {
@@ -7,13 +8,38 @@ interface AsyncNotificationsValue {
   loading: boolean
   turnByGame: Record<string, number>
   yourTurnCount: number
+  pendingFriendRequests: number
+  pendingAsyncInvites: number
+  accountBadgeCount: number
   refresh: () => Promise<void>
+  refreshSocial: () => Promise<void>
 }
 
 const AsyncNotificationsContext = createContext<AsyncNotificationsValue | null>(null)
 
 export function AsyncNotificationsProvider({ children }: { children: ReactNode }) {
-  const value = useAsyncNotifications()
+  const asyncNotifs = useAsyncNotifications()
+  const socialNotifs = useSocialNotifications()
+
+  const refresh = async () => {
+    await Promise.all([asyncNotifs.refresh(), socialNotifs.refresh()])
+  }
+
+  const value: AsyncNotificationsValue = {
+    matches: asyncNotifs.matches,
+    loading: asyncNotifs.loading,
+    turnByGame: asyncNotifs.turnByGame,
+    yourTurnCount: asyncNotifs.yourTurnCount,
+    pendingFriendRequests: socialNotifs.pendingFriendRequests,
+    pendingAsyncInvites: socialNotifs.pendingAsyncInvites,
+    accountBadgeCount:
+      asyncNotifs.yourTurnCount +
+      socialNotifs.pendingFriendRequests +
+      socialNotifs.pendingAsyncInvites,
+    refresh,
+    refreshSocial: socialNotifs.refresh,
+  }
+
   return (
     <AsyncNotificationsContext.Provider value={value}>{children}</AsyncNotificationsContext.Provider>
   )
@@ -27,7 +53,11 @@ export function useAsyncNotificationsContext(): AsyncNotificationsValue {
       loading: false,
       turnByGame: {},
       yourTurnCount: 0,
+      pendingFriendRequests: 0,
+      pendingAsyncInvites: 0,
+      accountBadgeCount: 0,
       refresh: async () => {},
+      refreshSocial: async () => {},
     }
   }
   return ctx

@@ -45,6 +45,7 @@ async function syncToCloud(input: GameEndInput): Promise<void> {
       input.mode === 'ai' && input.computerOptions && Object.keys(input.computerOptions).length > 0
         ? input.computerOptions
         : null,
+    p_opponent_user_id: input.opponentUserId ?? null,
   })
 }
 

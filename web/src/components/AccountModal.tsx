@@ -4,14 +4,28 @@ import { useAsyncNotificationsContext } from '../context/AsyncNotificationsConte
 import { fetchCloudStats, formatAccountGameSummary } from '../lib/stats'
 import type { GameStats } from '../lib/stats'
 import { getGameById } from '../games/registry'
+import {
+  acceptFriendRequest,
+  declineFriendRequest,
+  listFriendRequests,
+  listFriends,
+  searchUsersByUsername,
+  sendFriendRequest,
+} from '../lib/friends/friends'
+import { listMyAsyncInvites } from '../lib/friends/invites'
+import type { AsyncMatchInvite, Friend, FriendRequest, UserSearchResult } from '../lib/friends/types'
+import AsyncInviteList from './AsyncInviteList'
 import AsyncMatchList from './AsyncMatchList'
+import FriendDetailPanel from './FriendDetailPanel'
 import './Account.css'
+import './Friends.css'
 
 interface AccountModalProps {
   onClose: () => void
 }
 
 type Mode = 'signin' | 'signup'
+type ProfileTab = 'profile' | 'friends' | 'turns'
 
 export default function AccountModal({ onClose }: AccountModalProps) {
   const auth = useAuth()
@@ -144,16 +158,30 @@ function AuthPanel() {
 
 function ProfilePanel({ onClose }: { onClose: () => void }) {
   const auth = useAuth()
-  const { matches: asyncMatches, loading: asyncLoading } = useAsyncNotificationsContext()
+  const {
+    matches: asyncMatches,
+    loading: asyncLoading,
+    yourTurnCount,
+    pendingFriendRequests,
+    pendingAsyncInvites,
+    refresh,
+    refreshSocial,
+  } = useAsyncNotificationsContext()
   const yourTurnMatches = asyncMatches.filter((m) => m.isMyTurn)
   const sortedAsyncMatches = [...yourTurnMatches].sort(
     (a, b) => new Date(b.lastMoveAt).getTime() - new Date(a.lastMoveAt).getTime(),
   )
+  const [tab, setTab] = useState<ProfileTab>('profile')
   const [cloudStats, setCloudStats] = useState<GameStats[] | null>(null)
   const [editing, setEditing] = useState(false)
   const [nameDraft, setNameDraft] = useState(auth.profile?.username ?? '')
   const [savingName, setSavingName] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const refreshAll = () => {
+    void refresh()
+    void refreshSocial()
+  }
 
   useEffect(() => {
     let active = true
@@ -182,6 +210,8 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
   const memberSince = auth.profile?.createdAt
     ? new Date(auth.profile.createdAt).toLocaleDateString()
     : null
+
+  const turnsBadge = yourTurnCount + pendingAsyncInvites
 
   return (
     <div className="account-panel">
@@ -228,49 +258,87 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 
       {error && <p className="account-error">{error}</p>}
 
-      {(asyncLoading || sortedAsyncMatches.length > 0) && (
-        <section className="account-async">
-          <h3 className="account-section__title">Your turn</h3>
-          <AsyncMatchList
-            matches={sortedAsyncMatches}
-            loading={asyncLoading}
-            showGameName
-            emptyMessage="No games waiting on your move."
-            onContinue={onClose}
-          />
-        </section>
-      )}
-
-      <div className="account-summary">
-        <div className="account-summary__item">
-          <span className="account-summary__value">{auth.profile?.totalGamesPlayed ?? 0}</span>
-          <span className="account-summary__label">Games played</span>
-        </div>
-        <div className="account-summary__item">
-          <span className="account-summary__value">{cloudStats?.length ?? 0}</span>
-          <span className="account-summary__label">Games tried</span>
-        </div>
+      <div className="account-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          className={`account-tab ${tab === 'profile' ? 'account-tab--active' : ''}`}
+          aria-selected={tab === 'profile'}
+          onClick={() => setTab('profile')}
+        >
+          Profile
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={`account-tab ${tab === 'friends' ? 'account-tab--active' : ''}`}
+          aria-selected={tab === 'friends'}
+          onClick={() => setTab('friends')}
+        >
+          Friends
+          {pendingFriendRequests > 0 && (
+            <span className="account-tab__badge">{pendingFriendRequests}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={`account-tab ${tab === 'turns' ? 'account-tab--active' : ''}`}
+          aria-selected={tab === 'turns'}
+          onClick={() => setTab('turns')}
+        >
+          Your turn
+          {turnsBadge > 0 && <span className="account-tab__badge">{turnsBadge}</span>}
+        </button>
       </div>
 
-      <h3 className="account-section__title">Per-game stats</h3>
-      {cloudStats === null ? (
-        <p className="account-panel__subtitle">Loading…</p>
-      ) : cloudStats.length === 0 ? (
-        <p className="account-panel__subtitle">No games recorded yet. Go play something!</p>
-      ) : (
-        <ul className="account-stats">
-          {cloudStats.map((s) => {
-            const game = getGameById(s.gameId)
-            return (
-              <li key={s.gameId} className="account-stats__row">
-                <span className="account-stats__name">
-                  {game ? `${game.icon} ${game.name}` : s.gameId}
-                </span>
-                <span className="account-stats__meta">{formatAccountGameSummary(s.gameId, s)}</span>
-              </li>
-            )
-          })}
-        </ul>
+      {tab === 'profile' && (
+        <>
+          <div className="account-summary">
+            <div className="account-summary__item">
+              <span className="account-summary__value">{auth.profile?.totalGamesPlayed ?? 0}</span>
+              <span className="account-summary__label">Games played</span>
+            </div>
+            <div className="account-summary__item">
+              <span className="account-summary__value">{cloudStats?.length ?? 0}</span>
+              <span className="account-summary__label">Games tried</span>
+            </div>
+          </div>
+
+          <h3 className="account-section__title">Per-game stats</h3>
+          {cloudStats === null ? (
+            <p className="account-panel__subtitle">Loading…</p>
+          ) : cloudStats.length === 0 ? (
+            <p className="account-panel__subtitle">No games recorded yet. Go play something!</p>
+          ) : (
+            <ul className="account-stats">
+              {cloudStats.map((s) => {
+                const game = getGameById(s.gameId)
+                return (
+                  <li key={s.gameId} className="account-stats__row">
+                    <span className="account-stats__name">
+                      {game ? `${game.icon} ${game.name}` : s.gameId}
+                    </span>
+                    <span className="account-stats__meta">
+                      {formatAccountGameSummary(s.gameId, s)}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </>
+      )}
+
+      {tab === 'friends' && <FriendsTab onChanged={refreshAll} />}
+
+      {tab === 'turns' && (
+        <TurnsTab
+          asyncMatches={sortedAsyncMatches}
+          asyncLoading={asyncLoading}
+          onClose={onClose}
+          onChanged={refreshAll}
+        />
       )}
 
       <button
@@ -284,5 +352,283 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
         Sign out
       </button>
     </div>
+  )
+}
+
+function FriendsTab({ onChanged }: { onChanged: () => void }) {
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [requests, setRequests] = useState<FriendRequest[]>([])
+  const [loading, setLoading] = useState(true)
+  const [query, setQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const [f, r] = await Promise.all([listFriends(), listFriendRequests()])
+      setFriends(f)
+      setRequests(r)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load friends')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const handleSearch = async () => {
+    const q = query.trim()
+    if (q.length < 3) {
+      setError('Enter at least 3 characters to search.')
+      setSearchResults([])
+      return
+    }
+    setSearching(true)
+    setError(null)
+    try {
+      const results = await searchUsersByUsername(q)
+      setSearchResults(results)
+      if (results.length === 0) setError('No users found.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Search failed')
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const handleSendRequest = async (userId: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await sendFriendRequest(userId)
+      setSearchResults((prev) => prev.filter((u) => u.id !== userId))
+      onChanged()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send request')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleAccept = async (requesterId: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await acceptFriendRequest(requesterId)
+      await load()
+      onChanged()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not accept request')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleDecline = async (requesterId: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await declineFriendRequest(requesterId)
+      await load()
+      onChanged()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not decline request')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (selectedFriend) {
+    return (
+      <FriendDetailPanel
+        friend={selectedFriend}
+        onBack={() => setSelectedFriend(null)}
+        onChanged={() => {
+          void load()
+          onChanged()
+        }}
+      />
+    )
+  }
+
+  return (
+    <>
+      {error && <p className="account-error">{error}</p>}
+
+      <section>
+        <h3 className="account-section__title">Add friend</h3>
+        <div className="friends-search">
+          <input
+            className="account-input friends-search__input"
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by username"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void handleSearch()
+            }}
+          />
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={searching}
+            onClick={() => void handleSearch()}
+          >
+            {searching ? '…' : 'Search'}
+          </button>
+        </div>
+        {searchResults.length > 0 && (
+          <ul className="friends-list">
+            {searchResults.map((u) => (
+              <li key={u.id} className="friends-list__row">
+                <span className="friends-list__name">{u.username}</span>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={busy}
+                  onClick={() => void handleSendRequest(u.id)}
+                >
+                  Add
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {requests.length > 0 && (
+        <section>
+          <h3 className="account-section__title">Friend requests</h3>
+          <ul className="friends-list">
+            {requests.map((r) => (
+              <li key={r.requesterId} className="friends-list__row">
+                <span className="friends-list__name">{r.username}</span>
+                <div className="friends-list__actions">
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={busy}
+                    onClick={() => void handleAccept(r.requesterId)}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy}
+                    onClick={() => void handleDecline(r.requesterId)}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section>
+        <h3 className="account-section__title">Friends</h3>
+        {loading ? (
+          <p className="account-panel__subtitle">Loading…</p>
+        ) : friends.length === 0 ? (
+          <p className="account-panel__subtitle">No friends yet. Search above to add someone.</p>
+        ) : (
+          <ul className="friends-list">
+            {friends.map((f) => (
+              <li key={f.userId} className="friends-list__row">
+                <button
+                  type="button"
+                  className="friends-list__name"
+                  style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', color: 'inherit', cursor: 'pointer' }}
+                  onClick={() => setSelectedFriend(f)}
+                >
+                  {f.username}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setSelectedFriend(f)}
+                >
+                  View
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
+  )
+}
+
+function TurnsTab({
+  asyncMatches,
+  asyncLoading,
+  onClose,
+  onChanged,
+}: {
+  asyncMatches: ReturnType<typeof useAsyncNotificationsContext>['matches']
+  asyncLoading: boolean
+  onClose: () => void
+  onChanged: () => void
+}) {
+  const [invites, setInvites] = useState<AsyncMatchInvite[]>([])
+  const [invitesLoading, setInvitesLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    setInvitesLoading(true)
+    void listMyAsyncInvites()
+      .then((rows) => {
+        if (active) setInvites(rows)
+      })
+      .catch(() => {
+        if (active) setInvites([])
+      })
+      .finally(() => {
+        if (active) setInvitesLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const handleInviteChanged = () => {
+    void listMyAsyncInvites().then(setInvites)
+    onChanged()
+  }
+
+  return (
+    <>
+      {invites.length > 0 || invitesLoading ? (
+        <section className="account-async">
+          <h3 className="account-section__title">Game invites</h3>
+          <AsyncInviteList
+            invites={invites}
+            loading={invitesLoading}
+            onChanged={handleInviteChanged}
+            onContinue={onClose}
+          />
+        </section>
+      ) : null}
+
+      <section className="account-async">
+        <h3 className="account-section__title">Your turn</h3>
+        <AsyncMatchList
+          matches={asyncMatches}
+          loading={asyncLoading}
+          showGameName
+          emptyMessage="No games waiting on your move."
+          onContinue={onClose}
+        />
+      </section>
+    </>
   )
 }

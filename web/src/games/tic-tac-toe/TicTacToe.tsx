@@ -3,7 +3,7 @@ import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { useRoom } from '../../context/RoomContext'
 import { getComputerOptionString } from '../../lib/computer-options'
 import type { GameProps } from '../types'
-import type { AsyncMatchSession } from '../../lib/multiplayer/async-session'
+import { AsyncMatchSession } from '../../lib/multiplayer/async-session'
 import { recordGameEnd } from '../../lib/stats'
 import { parseTttDifficulty, pickAiMove } from './ai'
 import './TicTacToe.css'
@@ -159,6 +159,10 @@ export default function TicTacToe({
         durationMs: duration,
         startedAt: startTime.current,
         computerOptions: isAI ? computerOptions : undefined,
+        opponentUserId:
+          isAsync && session instanceof AsyncMatchSession
+            ? session.opponentUserId() ?? undefined
+            : undefined,
       })
       if (isRemote) recordSessionWin(w)
     },

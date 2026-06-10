@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { buildAsyncJoinUrl, createAsyncMatch } from '../lib/async/matches'
+import { listFriends } from '../lib/friends/friends'
+import { inviteFriendToAsyncMatch } from '../lib/friends/invites'
+import type { Friend } from '../lib/friends/types'
 import './AsyncNewGameModal.css'
 
 const MAX_PER_GAME = 3
@@ -23,6 +26,9 @@ export default function AsyncCreateGameModal({
   const [error, setError] = useState<string | null>(null)
   const [createdCode, setCreatedCode] = useState<string | null>(null)
   const [createdMatchId, setCreatedMatchId] = useState<string | null>(null)
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [selectedFriendId, setSelectedFriendId] = useState('')
+  const [inviteSent, setInviteSent] = useState(false)
 
   const atCap = activeCount >= MAX_PER_GAME
 
@@ -33,6 +39,12 @@ export default function AsyncCreateGameModal({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  useEffect(() => {
+    void listFriends()
+      .then(setFriends)
+      .catch(() => setFriends([]))
+  }, [])
 
   const handleCreate = async () => {
     if (atCap) {
@@ -48,6 +60,20 @@ export default function AsyncCreateGameModal({
       onCreated()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create game')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleSendToFriend = async () => {
+    if (!createdMatchId || !selectedFriendId) return
+    setBusy(true)
+    setError(null)
+    try {
+      await inviteFriendToAsyncMatch(createdMatchId, selectedFriendId)
+      setInviteSent(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send invite')
     } finally {
       setBusy(false)
     }
@@ -86,6 +112,34 @@ export default function AsyncCreateGameModal({
             >
               Copy invite link
             </button>
+
+            {friends.length > 0 && (
+              <>
+                <p className="async-new-modal__divider">or send to a friend</p>
+                <select
+                  className="async-new-modal__friend-select"
+                  value={selectedFriendId}
+                  onChange={(e) => setSelectedFriendId(e.target.value)}
+                  disabled={busy || inviteSent}
+                >
+                  <option value="">Choose a friend…</option>
+                  {friends.map((f) => (
+                    <option key={f.userId} value={f.userId}>
+                      {f.username}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy || !selectedFriendId || inviteSent}
+                  onClick={() => void handleSendToFriend()}
+                >
+                  {inviteSent ? 'Invite sent!' : busy ? 'Sending…' : 'Send to friend'}
+                </button>
+              </>
+            )}
+
             <button type="button" className="btn" onClick={handleStartPlaying}>
               Start playing
             </button>

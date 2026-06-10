@@ -131,7 +131,7 @@ export class AsyncMatchSession implements MultiplayerSession {
     this.handlers.forEach((h) => h(message))
   }
 
-  private opponentId(): string | null {
+  opponentUserId(): string | null {
     if (!this.match) return null
     return this.match.player1_id === this.userId
       ? this.match.player2_id
@@ -163,7 +163,7 @@ export class AsyncMatchSession implements MultiplayerSession {
       throw new Error('Unsupported game for async moves')
     }
 
-    const opponent = this.opponentId()
+    const opponent = this.opponentUserId()
     const seqExpected = this.moveCount
     const waitingSolo =
       this.match.status === 'waiting' && this.match.player1_id === this.userId && !opponent

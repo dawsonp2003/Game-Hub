@@ -12,7 +12,7 @@ export default function AccountButton() {
   const location = useLocation()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const { yourTurnCount, refresh } = useAsyncNotificationsContext()
+  const { accountBadgeCount, refresh } = useAsyncNotificationsContext()
 
   useEffect(() => {
     const state = location.state as AccountLocationState | null
@@ -39,9 +39,12 @@ export default function AccountButton() {
         <span className="account-btn__icon" aria-hidden>
           👤
         </span>
-        {yourTurnCount > 0 && (
-          <span className="account-btn__badge" aria-label={`${yourTurnCount} async games waiting for your turn`}>
-            {yourTurnCount > 9 ? '9+' : yourTurnCount}
+        {accountBadgeCount > 0 && (
+          <span
+            className="account-btn__badge"
+            aria-label={`${accountBadgeCount} notifications`}
+          >
+            {accountBadgeCount > 9 ? '9+' : accountBadgeCount}
           </span>
         )}
       </button>
