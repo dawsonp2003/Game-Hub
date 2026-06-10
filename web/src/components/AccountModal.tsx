@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { fetchCloudStats } from '../lib/stats'
+import { fetchCloudStats, formatAccountGameSummary } from '../lib/stats'
 import type { GameStats } from '../lib/stats'
 import { getGameById } from '../games/registry'
 import './Account.css'
@@ -10,12 +10,6 @@ interface AccountModalProps {
 }
 
 type Mode = 'signin' | 'signup'
-
-function winRate(s: GameStats): string {
-  const decided = s.wins + s.losses
-  if (decided === 0) return '—'
-  return `${Math.round((s.wins / decided) * 100)}%`
-}
 
 export default function AccountModal({ onClose }: AccountModalProps) {
   const auth = useAuth()
@@ -252,10 +246,7 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
                 <span className="account-stats__name">
                   {game ? `${game.icon} ${game.name}` : s.gameId}
                 </span>
-                <span className="account-stats__meta">
-                  {s.plays} plays · {winRate(s)} win
-                  {typeof s.rating === 'number' ? ` · ${s.rating} rating` : ''}
-                </span>
+                <span className="account-stats__meta">{formatAccountGameSummary(s.gameId, s)}</span>
               </li>
             )
           })}

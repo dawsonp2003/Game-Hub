@@ -16,7 +16,7 @@ export interface GameStats {
   /** Milliseconds — local guest stats; cloud rows derive this from minutes for display. */
   totalPlayTimeMs: number
   bestScore: number | null
-  /** Simple human-vs-human rating; only present for cloud stats. */
+  /** Cloud rating; only displayed for games in GAMES_WITH_RATING. */
   rating?: number | null
   lastPlayedAt: string | null
 }

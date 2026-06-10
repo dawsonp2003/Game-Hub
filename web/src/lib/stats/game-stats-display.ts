@@ -1,5 +1,40 @@
 import { computeSessionStats, type PlayHistoryEntry } from './history'
 
+/** Games that show a rating in the account profile (all others ignore rating). */
+export const GAMES_WITH_RATING: readonly string[] = ['ultimate-tic-tac-toe']
+
+export function gameShowsRating(gameId: string): boolean {
+  return GAMES_WITH_RATING.includes(gameId)
+}
+
+/** Compact one-line summary for the account modal per-game list. */
+export function formatAccountGameSummary(
+  gameId: string,
+  stats: {
+    plays: number
+    wins: number
+    losses: number
+    bestScore: number | null
+    rating?: number | null
+  },
+): string {
+  const parts = [`${stats.plays} plays`]
+
+  if (gameId === 'snake') {
+    parts.push(stats.bestScore !== null ? `best ${stats.bestScore}` : 'best —')
+  } else {
+    const decided = stats.wins + stats.losses
+    const winPct = decided === 0 ? '—' : `${Math.round((stats.wins / decided) * 100)}%`
+    parts.push(`${winPct} win`)
+  }
+
+  if (gameShowsRating(gameId) && typeof stats.rating === 'number') {
+    parts.push(`${stats.rating} rating`)
+  }
+
+  return parts.join(' · ')
+}
+
 export type StatMetric =
   | 'plays'
   | 'wins'

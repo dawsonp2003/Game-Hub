@@ -38,7 +38,7 @@ export interface GameDef {
 export const CATEGORY_LABELS: Record<GameCategory, string> = {
   word: 'Word & Letter',
   logic: 'Logic & Puzzles',
-  'board-2p': 'Board Games',
+  'board-2p': 'Strategy Games',
   arcade: 'Arcade',
   card: 'Card & Casual',
 }
