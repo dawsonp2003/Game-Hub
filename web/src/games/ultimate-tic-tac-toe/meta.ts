@@ -11,7 +11,7 @@ export const ultimateTicTacToe: GameDef = {
   icon: '⊞',
   image: '/games/ultimate-tic-tac-toe.png',
   category: 'board-2p',
-  modes: ['ai', 'pass-and-play', 'remote'],
+  modes: ['ai', 'pass-and-play', 'remote', 'async'],
   computerOptions: ultimateTicTacToeComputerOptions,
   status: 'live',
   load: () => import('./UltimateTicTacToe'),

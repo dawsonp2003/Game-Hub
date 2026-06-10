@@ -3,6 +3,7 @@ import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { useRoom } from '../../context/RoomContext'
 import { getComputerOptionString } from '../../lib/computer-options'
 import type { GameProps } from '../types'
+import type { AsyncMatchSession } from '../../lib/multiplayer/async-session'
 import { recordGameEnd } from '../../lib/stats'
 import { parseTttDifficulty, pickAiMove } from './ai'
 import './TicTacToe.css'
@@ -65,7 +66,9 @@ export default function TicTacToe({
 
   boardRef.current = board
 
+  const isAsync = mode === 'async'
   const isRemote = mode === 'remote'
+  const isNetworked = isRemote || isAsync
   const isAI = mode === 'ai'
   const isPassAndPlay = mode === 'pass-and-play'
   const aiDifficulty = useMemo(
@@ -73,7 +76,7 @@ export default function TicTacToe({
     [computerOptions],
   )
 
-  const mySymbol: Player = isRemote && session?.role === 'guest' ? 'O' : 'X'
+  const mySymbol: Player = isNetworked && session?.role === 'guest' ? 'O' : 'X'
 
   const broadcastSessionScore = useCallback(
     (wins: SessionWins) => {
@@ -122,14 +125,15 @@ export default function TicTacToe({
   const canPlay = useCallback(() => {
     if (winner) return false
     if (peerAway || room.status === 'peer-away') return false
-    if (isRemote) {
-      if (!room.isPlayReady) return false
+    if (isNetworked) {
+      if (isRemote && !room.isPlayReady) return false
+      if (isAsync && !session?.isConnected) return false
       const turn = current === 'X' ? 'host' : 'guest'
       return session?.role === turn
     }
     if (isAI && current === 'O') return false
     return true
-  }, [winner, peerAway, room.status, room.isPlayReady, isRemote, isAI, session, current])
+  }, [winner, peerAway, room.status, room.isPlayReady, isNetworked, isRemote, isAsync, isAI, session, current])
 
   const finishRound = useCallback(
     (w: Player | 'draw') => {
@@ -138,11 +142,14 @@ export default function TicTacToe({
       let result: 'win' | 'loss' | 'draw' | undefined
       if (w === 'draw') result = 'draw'
       else if (isAI) result = w === 'X' ? 'win' : 'loss'
-      else if (isRemote) {
+      else if (isNetworked) {
         const won =
           (w === 'X' && session?.role === 'host') ||
           (w === 'O' && session?.role === 'guest')
         result = won ? 'win' : 'loss'
+      }
+      if (isAsync && session?.markFinished) {
+        void session.markFinished((session as AsyncMatchSession).winnerUserId(w))
       }
       recordGameEnd({
         gameId,
@@ -155,7 +162,7 @@ export default function TicTacToe({
       })
       if (isRemote) recordSessionWin(w)
     },
-    [isAI, isRemote, session?.role, recordSessionWin, mode, computerOptions],
+    [isAI, isNetworked, isAsync, session, recordSessionWin, mode, computerOptions],
   )
 
   const applyMove = useCallback(
@@ -178,14 +185,14 @@ export default function TicTacToe({
   )
 
   useEffect(() => {
-    if (!session || !isRemote) return
+    if (!session || !isNetworked) return
     return session.onMessage((msg) => {
       const m = msg as TttMessage
       if (m.type === 'move') applyMove(m.index, m.player)
       if (m.type === 'ttt:reset') resetBoard(m.firstPlayer)
       if (m.type === 'ttt:session-score') setSessionWins(m.wins)
     })
-  }, [session, isRemote, applyMove, resetBoard])
+  }, [session, isNetworked, applyMove, resetBoard])
 
   useEffect(() => {
     if (!isAI || current !== 'O' || winner) return
@@ -211,10 +218,17 @@ export default function TicTacToe({
   const handleCellClick = (index: number) => {
     if (!canPlay() || board[index]) return
 
-    if (isRemote) {
-      const player: Player = session?.role === 'guest' ? 'O' : 'X'
+    const player: Player =
+      isNetworked && session?.role === 'guest' ? 'O' : isNetworked ? 'X' : current
+
+    if (isNetworked) {
       if (current !== player) return
-      session?.send({ type: 'move', index, player } satisfies TttMessage)
+      const msg = { type: 'move', index, player } satisfies TttMessage
+      if (isAsync && session) {
+        void (session as AsyncMatchSession).sendMove(msg).then(() => applyMove(index, player))
+        return
+      }
+      session?.send(msg)
     }
 
     applyMove(index, current)
@@ -226,6 +240,7 @@ export default function TicTacToe({
     if (isRemote && session) {
       session.send({ type: 'ttt:reset', firstPlayer: nextFirst } satisfies TttMessage)
     }
+    if (isAsync) return
   }
 
   const myWins = isRemote
@@ -242,7 +257,7 @@ export default function TicTacToe({
   let victoryHeadline = ''
   if (winner && winner !== 'draw') {
     if (isAI && winner === 'X') victoryHeadline = 'You win!'
-    else if (isRemote) {
+    else if (isNetworked) {
       const localWin =
         (winner === 'X' && session?.role === 'host') ||
         (winner === 'O' && session?.role === 'guest')
@@ -255,7 +270,7 @@ export default function TicTacToe({
     if (winner === 'draw') return "It's a draw!"
     if (winner) {
       if (isAI) return winner === 'X' ? 'You win!' : 'Computer wins!'
-      if (isRemote) {
+      if (isNetworked) {
         const won =
           (winner === 'X' && session?.role === 'host') ||
           (winner === 'O' && session?.role === 'guest')
@@ -263,11 +278,12 @@ export default function TicTacToe({
       }
       return `${winner} wins!`
     }
-    if (peerAway || room.status === 'peer-away') {
+    if (isRemote && (peerAway || room.status === 'peer-away')) {
       return 'Friend stepped away — board preserved. They can rejoin from the menu.'
     }
     if (isRemote && !room.isPlayReady) return 'Connecting…'
-    if (isRemote) {
+    if (isAsync && !session?.isConnected) return 'Loading match…'
+    if (isNetworked) {
       const yourTurn =
         (current === 'X' && session?.role === 'host') ||
         (current === 'O' && session?.role === 'guest')
@@ -277,6 +293,7 @@ export default function TicTacToe({
           (firstPlayer === 'O' && session?.role === 'guest')
         return youGoFirst ? 'You go first' : 'Friend goes first'
       }
+      if (isAsync && !yourTurn) return "Opponent's turn — check back later"
       return yourTurn ? 'Your turn' : "Opponent's turn"
     }
     if (isAI) return current === 'X' ? 'Your turn (X)' : 'Computer thinking…'
@@ -289,7 +306,7 @@ export default function TicTacToe({
 
   return (
     <div className="ttt">
-      {isRemote && (
+      {isRemote && !isAsync && (
         <div className="ttt__scoreboard" aria-label="Session score">
           <span className="ttt__score-you">You ({mySymbol}): {myWins}</span>
           <span className="ttt__score-them">Friend: {theirWins}</span>
@@ -312,15 +329,17 @@ export default function TicTacToe({
       </div>
       {winner && (
         <div className="ttt__actions">
-          <button type="button" className="btn" onClick={reset}>
-            Play Again
-          </button>
+          {!isAsync && (
+            <button type="button" className="btn" onClick={reset}>
+              Play Again
+            </button>
+          )}
           <button type="button" className="btn btn-secondary" onClick={onExit}>
             Menu
           </button>
         </div>
       )}
-      {isRemote && (
+      {isNetworked && (
         <p className="ttt__you">
           You are <strong>{mySymbol}</strong>
         </p>

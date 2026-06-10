@@ -10,6 +10,8 @@ export interface MultiplayerSession {
   onMessage(handler: (message: unknown) => void): () => void
   onConnectionChange(handler: (state: ConnectionState) => void): () => void
   disconnect(): void
+  /** Async matches: persist win/draw to the database. */
+  markFinished?(winnerUserId: string | null): Promise<void>
 }
 
 export function createLocalSession(): MultiplayerSession {

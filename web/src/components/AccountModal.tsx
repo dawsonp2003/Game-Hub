@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useAsyncNotificationsContext } from '../context/AsyncNotificationsContext'
 import { fetchCloudStats, formatAccountGameSummary } from '../lib/stats'
 import type { GameStats } from '../lib/stats'
 import { getGameById } from '../games/registry'
+import AsyncMatchList from './AsyncMatchList'
 import './Account.css'
 
 interface AccountModalProps {
@@ -142,6 +144,11 @@ function AuthPanel() {
 
 function ProfilePanel({ onClose }: { onClose: () => void }) {
   const auth = useAuth()
+  const { matches: asyncMatches, loading: asyncLoading } = useAsyncNotificationsContext()
+  const yourTurnMatches = asyncMatches.filter((m) => m.isMyTurn)
+  const sortedAsyncMatches = [...yourTurnMatches].sort(
+    (a, b) => new Date(b.lastMoveAt).getTime() - new Date(a.lastMoveAt).getTime(),
+  )
   const [cloudStats, setCloudStats] = useState<GameStats[] | null>(null)
   const [editing, setEditing] = useState(false)
   const [nameDraft, setNameDraft] = useState(auth.profile?.username ?? '')
@@ -220,6 +227,19 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
       </div>
 
       {error && <p className="account-error">{error}</p>}
+
+      {(asyncLoading || sortedAsyncMatches.length > 0) && (
+        <section className="account-async">
+          <h3 className="account-section__title">Your turn</h3>
+          <AsyncMatchList
+            matches={sortedAsyncMatches}
+            loading={asyncLoading}
+            showGameName
+            emptyMessage="No games waiting on your move."
+            onContinue={onClose}
+          />
+        </section>
+      )}
 
       <div className="account-summary">
         <div className="account-summary__item">

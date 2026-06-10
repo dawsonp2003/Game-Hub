@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useRoom } from '../context/RoomContext'
 import type { GameDef } from '../games/types'
 import { MODE_LABELS, type GameMode } from '../lib/multiplayer/types'
@@ -12,7 +12,11 @@ import {
   type GameProfileData,
 } from '../lib/stats'
 import GameCover from '../components/GameCover'
+import AsyncMatchPanel from '../components/AsyncMatchPanel'
+import AccountModal from '../components/AccountModal'
 import ComputerOptionsModal from '../components/ComputerOptionsModal'
+import { useAuth } from '../context/AuthContext'
+import { useAsyncNotificationsContext } from '../context/AsyncNotificationsContext'
 import type { ComputerOptions } from '../lib/computer-options'
 import {
   formatComputerOptionsSummary,
@@ -36,11 +40,20 @@ function pickDefaultMode(
   return game.modes[0]!
 }
 
+type GameInfoLocationState = { preferAsync?: boolean }
+
 export default function GameInfoPage({ game }: GameInfoPageProps) {
   const navigate = useNavigate()
+  const location = useLocation()
+  const preferAsync = (location.state as GameInfoLocationState | null)?.preferAsync === true
   const room = useRoom()
+  const auth = useAuth()
+  const { turnByGame } = useAsyncNotificationsContext()
+  const hasAsyncTurn = (turnByGame[game.id] ?? 0) > 0
   const supportsRemote = game.modes.includes('remote')
+  const supportsAsync = game.modes.includes('async')
   const onlineReady = room.isInRoom && room.isPlayReady && supportsRemote
+  const [accountOpen, setAccountOpen] = useState(false)
 
   const [profile, setProfile] = useState<GameProfileData | null>(null)
   const favoriteApplied = useRef(false)
@@ -56,6 +69,7 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
   )
 
   const onlineSelected = selectedMode === 'remote' && supportsRemote
+  const asyncSelected = selectedMode === 'async' && supportsAsync
 
   const computerOptionsSummary = useMemo(() => {
     if (!game.computerOptions) return ''
@@ -63,6 +77,9 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
   }, [game.computerOptions, computerOptions])
 
   const primaryAction = useMemo(() => {
+    if (asyncSelected) {
+      return null
+    }
     if (onlineSelected) {
       if (!room.isInRoom) {
         return { label: 'Create a room', disabled: false }
@@ -77,6 +94,8 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
     }
     return { label: 'Play', disabled: false }
   }, [
+    asyncSelected,
+    auth.user,
     onlineSelected,
     room.isInRoom,
     room.isPlayReady,
@@ -101,14 +120,18 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
       setProfile(data)
       if (!favoriteApplied.current) {
         const favorite = gameModeFromFavorite(data.favoriteMode, game.modes) as GameMode | null
-        setSelectedMode(pickDefaultMode(game, onlineReady, favorite))
+        if ((preferAsync || hasAsyncTurn) && supportsAsync) {
+          setSelectedMode('async')
+        } else {
+          setSelectedMode(pickDefaultMode(game, onlineReady, favorite))
+        }
         favoriteApplied.current = true
       }
     })
     return () => {
       active = false
     }
-  }, [game.id, game.modes, onlineReady])
+  }, [game.id, game.modes, onlineReady, preferAsync, supportsAsync, hasAsyncTurn])
 
   const startPlay = (options?: ComputerOptions) => {
     navigate(`/play/${game.id}`, {
@@ -117,6 +140,7 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
   }
 
   const handlePlay = () => {
+    if (asyncSelected) return
     if (onlineSelected) {
       if (!room.isInRoom) {
         room.setRoomPanelOpen(true)
@@ -195,14 +219,20 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
             </button>
           )}
 
-          <button
-            type="button"
-            className="btn game-info__play"
-            onClick={handlePlay}
-            disabled={primaryAction.disabled}
-          >
-            {primaryAction.label}
-          </button>
+          {!asyncSelected && primaryAction && (
+            <button
+              type="button"
+              className="btn game-info__play"
+              onClick={handlePlay}
+              disabled={primaryAction.disabled}
+            >
+              {primaryAction.label}
+            </button>
+          )}
+
+          {asyncSelected && (
+            <AsyncMatchPanel gameId={game.id} onNeedSignIn={() => setAccountOpen(true)} />
+          )}
         </section>
 
         <aside className="game-info__aside">
@@ -218,6 +248,8 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
           onClose={() => setComputerOptionsOpen(false)}
         />
       )}
+
+      {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
     </div>
   )
 }

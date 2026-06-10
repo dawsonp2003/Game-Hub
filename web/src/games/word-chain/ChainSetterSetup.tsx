@@ -32,7 +32,8 @@ export default function ChainSetterSetup({
 
   const role = wordGameSetterRole(mode, session?.role ?? null)
   const isSetter = role === 'setter'
-  const showWaiting = waiting || (mode === 'remote' && !isSetter && !bothEnterChain)
+  const showWaiting =
+    waiting || (mode === 'remote' && !isSetter && !bothEnterChain)
 
   const setWordAt = (index: number, value: string) => {
     setWords((prev) => {

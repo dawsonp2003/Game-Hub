@@ -4,6 +4,7 @@ import { useIsMobileViewport } from '../../hooks/usePinchPanZoom'
 import { useRoom } from '../../context/RoomContext'
 import { getComputerOptionString } from '../../lib/computer-options'
 import type { GameProps } from '../types'
+import type { AsyncMatchSession } from '../../lib/multiplayer/async-session'
 import { recordGameEnd } from '../../lib/stats'
 import UltimateTicTacToeBoard, { statusForState } from './UltimateTicTacToeBoard'
 import { expertUsesDeepSearch } from './uttt-ai'
@@ -44,7 +45,9 @@ export default function UltimateTicTacToe({
 
   stateRef.current = state
 
+  const isAsync = mode === 'async'
   const isRemote = mode === 'remote'
+  const isNetworked = isRemote || isAsync
   const isAI = mode === 'ai'
   const isPassAndPlay = mode === 'pass-and-play'
   const aiDifficulty = useMemo(
@@ -52,13 +55,14 @@ export default function UltimateTicTacToe({
     [computerOptions],
   )
 
-  const mySymbol: Player = isRemote && session?.role === 'guest' ? 'O' : 'X'
+  const mySymbol: Player = isNetworked && session?.role === 'guest' ? 'O' : 'X'
 
   const canPlayLocal = useCallback(() => {
     if (state.macroWinner) return false
     if (peerAway || room.status === 'peer-away') return false
-    if (isRemote) {
-      if (!room.isPlayReady) return false
+    if (isNetworked) {
+      if (isRemote && !room.isPlayReady) return false
+      if (isAsync && !session?.isConnected) return false
       const turn = state.current === 'X' ? 'host' : 'guest'
       return session?.role === turn
     }
@@ -70,9 +74,12 @@ export default function UltimateTicTacToe({
     peerAway,
     room.status,
     room.isPlayReady,
+    isNetworked,
     isRemote,
+    isAsync,
     isAI,
     session?.role,
+    session?.isConnected,
   ])
 
   const canPlay = canPlayLocal()
@@ -80,7 +87,7 @@ export default function UltimateTicTacToe({
   const victoryHeadline = (() => {
     if (!state.macroWinner || state.macroWinner === 'draw') return ''
     if (isAI) return state.macroWinner === 'X' ? 'You win!' : ''
-    if (isRemote) return state.macroWinner === mySymbol ? 'You win!' : ''
+    if (isNetworked) return state.macroWinner === mySymbol ? 'You win!' : ''
     return `${state.macroWinner} wins!`
   })()
   useVictoryConfetti(victoryHeadline)
@@ -90,7 +97,10 @@ export default function UltimateTicTacToe({
       let result: 'win' | 'loss' | 'draw' | undefined
       if (winner === 'draw') result = 'draw'
       else if (isAI) result = winner === 'X' ? 'win' : 'loss'
-      else if (isRemote) result = winner === mySymbol ? 'win' : 'loss'
+      else if (isNetworked) result = winner === mySymbol ? 'win' : 'loss'
+      if (isAsync && session?.markFinished) {
+        void session.markFinished((session as AsyncMatchSession).winnerUserId(winner))
+      }
       recordGameEnd({
         gameId,
         mode,
@@ -101,7 +111,7 @@ export default function UltimateTicTacToe({
         computerOptions: isAI ? computerOptions : undefined,
       })
     },
-    [isAI, isRemote, mySymbol, mode, computerOptions],
+    [isAI, isNetworked, isAsync, session, mySymbol, mode, computerOptions],
   )
 
   const playMove = useCallback(
@@ -113,28 +123,40 @@ export default function UltimateTicTacToe({
       const next = applyMove(prev, move)
       if (next.cells[move.board * 9 + move.cell] !== player) return
 
-      stateRef.current = next
-      setState(next)
-      setLastMove(move)
-
-      if (next.macroWinner && !prev.macroWinner) {
-        recordEnd(next.macroWinner)
+      const commit = () => {
+        stateRef.current = next
+        setState(next)
+        setLastMove(move)
+        if (next.macroWinner && !prev.macroWinner) {
+          recordEnd(next.macroWinner)
+        }
       }
 
-      if (isRemote && !fromNetwork) {
-        session?.send({
-          type: 'uttt:move',
-          board: move.board,
-          cell: move.cell,
-          player,
-        } satisfies UtttMessage)
+      if (fromNetwork || !isNetworked) {
+        commit()
+        return
       }
+
+      const msg = {
+        type: 'uttt:move',
+        board: move.board,
+        cell: move.cell,
+        player,
+      } satisfies UtttMessage
+
+      if (isAsync && session) {
+        void (session as AsyncMatchSession).sendMove(msg).then(commit)
+        return
+      }
+
+      commit()
+      session?.send(msg)
     },
-    [isRemote, session, recordEnd],
+    [isNetworked, isAsync, session, recordEnd],
   )
 
   useEffect(() => {
-    if (!session || !isRemote) return
+    if (!session || !isNetworked) return
     return session.onMessage((msg) => {
       const m = msg as UtttMessage
       if (m.type === 'uttt:move') {
@@ -151,7 +173,7 @@ export default function UltimateTicTacToe({
         startTime.current = Date.now()
       }
     })
-  }, [session, isRemote, playMove])
+  }, [session, isNetworked, playMove])
 
   useEffect(() => {
     if (!isAI || state.current !== 'O' || state.macroWinner) return
@@ -178,9 +200,9 @@ export default function UltimateTicTacToe({
 
   const status = statusForState(state, {
     canPlay,
-    mySymbol: isRemote ? mySymbol : undefined,
-    isRemote,
-    peerAway,
+    mySymbol: isNetworked ? mySymbol : undefined,
+    isRemote: isNetworked,
+    peerAway: isRemote ? peerAway : false,
   })
 
   const playerTag = () => {
@@ -199,7 +221,7 @@ export default function UltimateTicTacToe({
   return (
     <div className="uttt">
       {tag && <p className="uttt__you">{tag}</p>}
-      {isRemote && (
+      {isNetworked && (
         <p className="uttt__you">
           You are <strong>{mySymbol}</strong>
         </p>
@@ -208,11 +230,13 @@ export default function UltimateTicTacToe({
       <p
         className={`uttt__status ${state.macroWinner && state.macroWinner !== 'draw' ? 'uttt__status--win' : ''}`}
       >
-        {peerAway && !state.macroWinner
+        {isRemote && peerAway && !state.macroWinner
           ? status
           : isRemote && !room.isPlayReady && !state.macroWinner
             ? 'Connecting…'
-            : status}
+            : isAsync && !session?.isConnected && !state.macroWinner
+              ? 'Loading match…'
+              : status}
       </p>
 
       <UltimateTicTacToeBoard
@@ -228,9 +252,11 @@ export default function UltimateTicTacToe({
 
       {state.macroWinner && (
         <div className="uttt__actions">
-          <button type="button" className="btn" onClick={reset}>
-            Play again
-          </button>
+          {!isAsync && (
+            <button type="button" className="btn" onClick={reset}>
+              Play again
+            </button>
+          )}
           <button type="button" className="btn btn-secondary" onClick={onExit}>
             Menu
           </button>

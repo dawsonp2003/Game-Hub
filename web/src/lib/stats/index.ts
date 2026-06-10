@@ -4,7 +4,13 @@ import type { StatsStore } from './types'
 /** Local (device) aggregate store — always available, used for guests/offline. */
 export const stats: StatsStore = localStatsStore
 
-export { recordGameEnd, fetchCloudStats, fetchPlayCounts } from './record'
+export {
+  recordGameEnd,
+  fetchCloudStats,
+  fetchPlayCounts,
+  getCachedPlayCounts,
+  invalidatePlayCountsCache,
+} from './record'
 export { loadGameProfile } from './game-profile'
 export type { GameProfileData } from './game-profile'
 export { modeDisplayLabel, formatHistoryLine, sessionsForMode, computeSessionStats, gameModeFromFavorite } from './history'

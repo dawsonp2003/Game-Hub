@@ -42,7 +42,8 @@ export default function WordSetterSetup({
 
   const role = wordGameSetterRole(mode, session?.role ?? null)
   const isSetter = role === 'setter'
-  const showWaiting = waiting || (mode === 'remote' && !isSetter && !bothEnterWord)
+  const showWaiting =
+    waiting || (mode === 'remote' && !isSetter && !bothEnterWord)
 
   const submit = () => {
     const primary = normalizeSecretWord(word)

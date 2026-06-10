@@ -9,7 +9,7 @@ export const ticTacToe: GameDef = {
     'Take turns placing X and O on a 3×3 grid. The first player to get three in a row — across, down, or diagonal — wins. If the board fills with no winner, the game is a draw.',
   icon: '⭕',
   category: 'board-2p',
-  modes: ['ai', 'pass-and-play', 'remote'],
+  modes: ['ai', 'pass-and-play', 'remote', 'async'],
   computerOptions: ticTacToeComputerOptions,
   status: 'live',
   load: () => import('./TicTacToe'),

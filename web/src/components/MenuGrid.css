@@ -81,7 +81,9 @@
   }
 }
 
-.menu-grid__empty {
+.menu-grid__empty,
+.menu-grid__loading {
+  grid-column: 1 / -1;
   text-align: center;
   color: var(--text-muted);
   padding: 2rem;

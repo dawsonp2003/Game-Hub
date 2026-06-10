@@ -58,6 +58,7 @@ export function recordGameEnd(input: GameEndInput): void {
   if (input.result) localStatsStore.recordResult(input.gameId, input.result)
   if (typeof input.score === 'number') localStatsStore.recordScore(input.gameId, input.score)
   appendLocalPlayHistory(input)
+  invalidatePlayCountsCache()
 
   void syncToCloud(input).catch((err) => {
     console.warn('[stats] cloud sync failed', err)
@@ -101,13 +102,39 @@ function playCountsFromLocal(): Record<string, number> {
   return Object.fromEntries(localStatsStore.getAllStats().map((r) => [r.gameId, r.plays]))
 }
 
+let playCountsCache: { userKey: string; counts: Record<string, number> } | null = null
+
+function playCountsUserKey(userId: string | undefined): string {
+  return userId ?? '__guest__'
+}
+
+/** Synchronous read of the last fetched play-count snapshot for this user. */
+export function getCachedPlayCounts(userId: string | undefined): Record<string, number> | null {
+  const key = playCountsUserKey(userId)
+  if (playCountsCache?.userKey === key) return playCountsCache.counts
+  return null
+}
+
+export function invalidatePlayCountsCache(): void {
+  playCountsCache = null
+}
+
 /** Per-game play counts for sorting (cloud when signed in, local otherwise). */
-export async function fetchPlayCounts(): Promise<Record<string, number>> {
-  if (!supabase) return playCountsFromLocal()
+export async function fetchPlayCounts(userId?: string): Promise<Record<string, number>> {
+  let counts: Record<string, number>
 
-  const { data: sessionData } = await supabase.auth.getSession()
-  if (!sessionData.session) return playCountsFromLocal()
+  if (!supabase) {
+    counts = playCountsFromLocal()
+  } else {
+    const { data: sessionData } = await supabase.auth.getSession()
+    if (!sessionData.session) {
+      counts = playCountsFromLocal()
+    } else {
+      const rows = await fetchCloudStats()
+      counts = Object.fromEntries(rows.map((r) => [r.gameId, r.plays]))
+    }
+  }
 
-  const rows = await fetchCloudStats()
-  return Object.fromEntries(rows.map((r) => [r.gameId, r.plays]))
+  playCountsCache = { userKey: playCountsUserKey(userId ?? undefined), counts }
+  return counts
 }

@@ -29,5 +29,9 @@ export function getLiveGames(): GameDef[] {
 
 /** Games with pass-and-play and/or remote modes. */
 export function isMultiplayerGame(game: GameDef): boolean {
-  return game.modes.includes('remote') || game.modes.includes('pass-and-play')
+  return (
+    game.modes.includes('remote') ||
+    game.modes.includes('pass-and-play') ||
+    game.modes.includes('async')
+  )
 }

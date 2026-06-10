@@ -1,0 +1,87 @@
+.async-new-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.async-new-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+}
+
+.async-new-modal__dialog {
+  position: relative;
+  width: min(100%, 400px);
+  padding: 1.25rem;
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+
+.async-new-modal__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+}
+
+.async-new-modal__hint {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.async-new-modal__error {
+  margin: 0 0 0.75rem;
+  color: var(--danger);
+  font-size: 0.875rem;
+}
+
+.async-new-modal__create {
+  width: 100%;
+}
+
+.async-new-modal__divider {
+  margin: 1rem 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.async-new-modal__join {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.async-new-modal__join-input {
+  flex: 1;
+  letter-spacing: 0.2em;
+  text-align: center;
+}
+
+.async-new-modal__code-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.async-new-modal__code-label {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.async-new-modal__code {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}

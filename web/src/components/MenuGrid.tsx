@@ -4,7 +4,7 @@ import { CATEGORY_LABELS } from '../games/types'
 import { getLiveGames, isMultiplayerGame } from '../games/registry'
 import { useAuth } from '../context/AuthContext'
 import { useRoom } from '../context/RoomContext'
-import { fetchPlayCounts } from '../lib/stats'
+import { fetchPlayCounts, getCachedPlayCounts } from '../lib/stats'
 import GameCard from './GameCard'
 import RoomMenuButton from './RoomMenuButton'
 import RoomSuggestionChip from './RoomSuggestionChip'
@@ -32,20 +32,23 @@ function sortByPlays<T extends { id: string }>(
 export default function MenuGrid() {
   const auth = useAuth()
   const room = useRoom()
-  const [playCounts, setPlayCounts] = useState<Record<string, number>>({})
+  const userId = auth.user?.id
+  const [playCounts, setPlayCounts] = useState<Record<string, number> | null>(() =>
+    getCachedPlayCounts(userId),
+  )
 
   useEffect(() => {
     let active = true
-    fetchPlayCounts().then((counts) => {
+    void fetchPlayCounts(userId).then((counts) => {
       if (active) setPlayCounts(counts)
     })
     return () => {
       active = false
     }
-  }, [auth.user?.id])
+  }, [userId])
 
   const games = useMemo(
-    () => sortByPlays(LIVE_GAMES, playCounts, LIVE_GAMES),
+    () => (playCounts ? sortByPlays(LIVE_GAMES, playCounts, LIVE_GAMES) : []),
     [playCounts],
   )
 
@@ -60,9 +63,9 @@ export default function MenuGrid() {
   }, [room.isInRoom])
 
   const categories = useMemo(() => {
-    const set = new Set(games.map((g) => g.category))
+    const set = new Set(LIVE_GAMES.map((g) => g.category))
     return Array.from(set) as GameCategory[]
-  }, [games])
+  }, [])
 
   const filtered = useMemo(() => {
     if (filter === ALL) return games
@@ -119,12 +122,16 @@ export default function MenuGrid() {
       </div>
 
       <div className="menu-grid__list">
-        {filtered.map((game) => (
-          <GameCard key={game.id} game={game} />
-        ))}
+        {playCounts === null ? (
+          <p className="menu-grid__loading" aria-live="polite">
+            Loading games…
+          </p>
+        ) : (
+          filtered.map((game) => <GameCard key={game.id} game={game} />)
+        )}
       </div>
 
-      {filtered.length === 0 && (
+      {playCounts !== null && filtered.length === 0 && (
         <p className="menu-grid__empty">
           {filter === MULTIPLAYER ? 'No multiplayer games yet.' : 'No games in this category yet.'}
         </p>

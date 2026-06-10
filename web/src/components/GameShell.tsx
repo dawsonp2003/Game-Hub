@@ -1,11 +1,20 @@
-import { Suspense, useCallback, useEffect, useMemo, useState, type ComponentType } from 'react'
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+} from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useRoom } from '../context/RoomContext'
 import type { GameDef, GameProps } from '../games/types'
 import type { GameMode } from '../lib/multiplayer/types'
 import type { ComputerOptions } from '../lib/computer-options'
 import { resolveComputerOptions } from '../lib/computer-options'
-import { createLocalSession } from '../lib/multiplayer/session'
+import { createAsyncMatchSession } from '../lib/multiplayer/async-session'
+import { createLocalSession, type MultiplayerSession } from '../lib/multiplayer/session'
 import GameHowToModal from './GameHowToModal'
 import RoomMenuButton from './RoomMenuButton'
 import RoomSuggestionChip from './RoomSuggestionChip'
@@ -15,6 +24,8 @@ type PlayLocationState = {
   roomLaunch?: boolean
   mode?: GameMode
   computerOptions?: ComputerOptions
+  matchId?: string
+  fromAccount?: boolean
 }
 
 interface GameShellProps {
@@ -28,11 +39,17 @@ export default function GameShell({ game }: GameShellProps) {
   const locationState = location.state as PlayLocationState | null
   const requestedMode = locationState?.mode
   const requestedComputerOptions = locationState?.computerOptions
+  const requestedMatchId = locationState?.matchId
+  const fromAccount = locationState?.fromAccount === true
 
   const [mode, setMode] = useState<GameMode | null>(null)
   const [computerOptions, setComputerOptions] = useState<ComputerOptions | undefined>()
   const [howToOpen, setHowToOpen] = useState(false)
   const [localSession] = useState(() => createLocalSession())
+  const [asyncSession, setAsyncSession] = useState<MultiplayerSession | null>(null)
+  const [asyncLoading, setAsyncLoading] = useState(false)
+  const [asyncError, setAsyncError] = useState<string | null>(null)
+  const asyncSessionGen = useRef(0)
   const [GameComponent, setGameComponent] = useState<ComponentType<GameProps> | null>(null)
 
   useEffect(() => {
@@ -52,6 +69,15 @@ export default function GameShell({ game }: GameShellProps) {
         return
       }
       setMode('remote')
+      return
+    }
+
+    if (requestedMode === 'async' && game.modes.includes('async')) {
+      if (!requestedMatchId) {
+        navigate(`/game/${game.id}`, { replace: true })
+        return
+      }
+      setMode('async')
       return
     }
 
@@ -76,27 +102,86 @@ export default function GameShell({ game }: GameShellProps) {
     game.id,
     room.isPlayReady,
     requestedMode,
+    requestedMatchId,
     requestedComputerOptions,
     game.computerOptions,
     navigate,
   ])
 
+  useEffect(() => {
+    if (mode !== 'async' || !requestedMatchId) {
+      setAsyncSession(null)
+      setAsyncError(null)
+      return
+    }
+
+    const gen = ++asyncSessionGen.current
+    let cancelled = false
+    setAsyncLoading(true)
+    setAsyncError(null)
+    setAsyncSession(null)
+
+    createAsyncMatchSession(requestedMatchId, (msg) => {
+      if (!cancelled && gen === asyncSessionGen.current) setAsyncError(msg)
+    })
+      .then((session) => {
+        if (cancelled || gen !== asyncSessionGen.current) {
+          session.disconnect()
+          return
+        }
+        setAsyncSession(session)
+        setAsyncLoading(false)
+      })
+      .catch((err) => {
+        if (!cancelled && gen === asyncSessionGen.current) {
+          setAsyncError(err instanceof Error ? err.message : 'Could not load match')
+          setAsyncLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+      setAsyncSession((prev) => {
+        prev?.disconnect()
+        return null
+      })
+    }
+  }, [mode, requestedMatchId])
+
   const activeSession = useMemo(
-    () => (mode === 'remote' && room.session ? room.session : localSession),
-    [mode, room.session, localSession],
+    () =>
+      mode === 'remote' && room.session
+        ? room.session
+        : mode === 'async'
+          ? asyncSession
+          : localSession,
+    [mode, room.session, asyncSession, localSession],
   )
 
   const handleExit = useCallback(() => {
+    if (fromAccount) {
+      navigate('/', { state: { openAccount: true } })
+      return
+    }
     navigate(`/game/${game.id}`)
-  }, [navigate, game.id])
+  }, [navigate, game.id, fromAccount])
 
   const handleBack = useCallback(() => {
+    if (fromAccount) {
+      navigate('/', { state: { openAccount: true } })
+      return
+    }
     if (room.isInRoom) {
       navigate('/')
       return
     }
     navigate(`/game/${game.id}`)
-  }, [game.id, navigate, room.isInRoom])
+  }, [game.id, navigate, room.isInRoom, fromAccount])
+
+  const readyToPlay =
+    mode &&
+    GameComponent &&
+    (mode !== 'async' || (!asyncLoading && asyncSession && !asyncError))
 
   return (
     <div className="game-shell">
@@ -131,13 +216,22 @@ export default function GameShell({ game }: GameShellProps) {
       )}
 
       <main className="game-shell__main">
-        {mode && GameComponent && (
+        {asyncError && mode === 'async' && (
+          <p className="game-shell__loading game-shell__error">{asyncError}</p>
+        )}
+
+        {asyncLoading && mode === 'async' && (
+          <p className="game-shell__loading">Loading saved game…</p>
+        )}
+
+        {readyToPlay && (
           <Suspense fallback={<p className="game-shell__loading">Loading game…</p>}>
             <GameComponent
               mode={mode}
               session={activeSession}
               peerAway={mode === 'remote' && room.status === 'peer-away'}
               computerOptions={mode === 'ai' ? computerOptions : undefined}
+              asyncMatchId={mode === 'async' ? requestedMatchId : undefined}
               onExit={handleExit}
             />
           </Suspense>

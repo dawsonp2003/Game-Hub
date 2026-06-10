@@ -16,6 +16,8 @@ export interface GameProps {
   onExit: () => void
   /** Options chosen in the computer setup modal when mode is `ai`. */
   computerOptions?: ComputerOptions
+  /** Async saved match id when mode is `async`. */
+  asyncMatchId?: string
 }
 
 export interface GameDef {
