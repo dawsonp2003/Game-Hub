@@ -1,3 +1,5 @@
+import type { ComputerOptions } from '../computer-options'
+import { computerDifficultyLabel } from '../computer-options'
 import type { GameEndInput, GameResult } from './types'
 
 export interface PlayHistoryEntry {
@@ -6,6 +8,8 @@ export interface PlayHistoryEntry {
   score?: number
   turns?: number
   playedAt: string
+  /** Computer mode settings when mode is `ai`. */
+  computerOptions?: ComputerOptions
 }
 
 const HISTORY_KEY = 'game-arcade-play-history'
@@ -33,6 +37,7 @@ export function appendLocalPlayHistory(input: GameEndInput): void {
     score: input.score,
     turns: input.turns,
     playedAt: new Date().toISOString(),
+    computerOptions: input.computerOptions,
   }
   const list = [entry, ...(data[input.gameId] ?? [])].slice(0, MAX_RECENT)
   data[input.gameId] = list
@@ -68,20 +73,45 @@ export function favoriteModeFromHistory(
 }
 
 /** Map stored mode strings to display labels. */
-export function modeDisplayLabel(mode: string): string {
-  switch (normalizeModeKey(mode)) {
-    case 'single':
-    case 'solo':
-      return 'Solo'
-    case 'ai':
-      return 'Computer'
-    case 'pass-and-play':
-      return 'Pass & Play'
-    case 'remote':
-      return 'Online'
-    default:
-      return mode
+export function modeDisplayLabel(
+  mode: string,
+  computerOptions?: ComputerOptions,
+  gameId?: string,
+): string {
+  const base = (() => {
+    switch (normalizeModeKey(mode)) {
+      case 'single':
+      case 'solo':
+        return 'Solo'
+      case 'ai':
+        return 'Computer'
+      case 'pass-and-play':
+        return 'Pass & Play'
+      case 'remote':
+        return 'Online'
+      default:
+        return mode
+    }
+  })()
+
+  if (normalizeModeKey(mode) !== 'ai') return base
+
+  const difficulty = gameId
+    ? computerDifficultyLabel(gameId, computerOptions)
+    : difficultyLabelFromOptionsFallback(computerOptions)
+  return difficulty ? `${difficulty} ${base}` : base
+}
+
+function difficultyLabelFromOptionsFallback(options?: ComputerOptions): string | null {
+  if (!options) return null
+  for (const key of ['difficulty', 'level', 'aiLevel'] as const) {
+    const value = options[key]
+    if (value === undefined || value === null) continue
+    const raw = String(value)
+    if (!raw) return null
+    return raw.charAt(0).toUpperCase() + raw.slice(1)
   }
+  return null
 }
 
 function normalizeModeKey(mode: string): string {
@@ -119,12 +149,20 @@ export function computeSessionStats(entries: PlayHistoryEntry[]): SessionStats {
   }
 }
 
-export function formatHistoryLine(entry: PlayHistoryEntry, gameId?: string): string {
-  const date = new Date(entry.playedAt).toLocaleDateString(undefined, {
+export interface HistoryTableRow {
+  date: string
+  mode: string
+  result: string
+}
+
+function formatHistoryDate(playedAt: string): string {
+  return new Date(playedAt).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
   })
-  const mode = modeDisplayLabel(entry.mode)
+}
+
+function formatHistoryResult(entry: PlayHistoryEntry, gameId?: string): string {
   let turnSuffix = ''
   if (typeof entry.turns === 'number' && entry.turns > 0) {
     if (gameId === 'word-ladder') turnSuffix = ` · ${entry.turns} steps`
@@ -134,10 +172,23 @@ export function formatHistoryLine(entry: PlayHistoryEntry, gameId?: string): str
 
   if (entry.result) {
     const outcome = entry.result === 'win' ? 'Win' : entry.result === 'loss' ? 'Loss' : 'Draw'
-    return `${date} · ${mode} · ${outcome}${turnSuffix}`
+    return `${outcome}${turnSuffix}`
   }
   if (typeof entry.score === 'number') {
-    return `${date} · ${mode} · Score ${entry.score}`
+    return `Score ${entry.score}`
   }
-  return `${date} · ${mode}`
+  return '—'
+}
+
+export function formatHistoryRow(entry: PlayHistoryEntry, gameId?: string): HistoryTableRow {
+  return {
+    date: formatHistoryDate(entry.playedAt),
+    mode: modeDisplayLabel(entry.mode, entry.computerOptions, gameId),
+    result: formatHistoryResult(entry, gameId),
+  }
+}
+
+export function formatHistoryLine(entry: PlayHistoryEntry, gameId?: string): string {
+  const { date, mode, result } = formatHistoryRow(entry, gameId)
+  return `${date} · ${mode} · ${result}`
 }

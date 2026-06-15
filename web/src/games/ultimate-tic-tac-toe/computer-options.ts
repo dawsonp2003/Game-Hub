@@ -14,7 +14,7 @@ export const ultimateTicTacToeComputerOptions: ComputerOptionsConfig = {
         {
           value: 'expert',
           label: 'Expert',
-          description: 'Fast opening, then deep search (up to ~8s) in the endgame',
+          description: 'Deep search every move (up to ~8 seconds)',
         },
       ],
       default: 'normal',

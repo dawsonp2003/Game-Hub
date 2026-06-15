@@ -1,3 +1,4 @@
+import { resolveRecordedComputerOptions } from '../computer-options'
 import { supabase } from '../supabase/client'
 import { appendLocalPlayHistory } from './history'
 import { localStatsStore } from './local'
@@ -55,13 +56,20 @@ async function syncToCloud(input: GameEndInput): Promise<void> {
  * records a detailed session to Supabase when the player is signed in.
  */
 export function recordGameEnd(input: GameEndInput): void {
-  localStatsStore.recordPlay(input.gameId, input.durationMs)
-  if (input.result) localStatsStore.recordResult(input.gameId, input.result)
-  if (typeof input.score === 'number') localStatsStore.recordScore(input.gameId, input.score)
-  appendLocalPlayHistory(input)
+  const computerOptions = resolveRecordedComputerOptions(
+    input.gameId,
+    input.mode,
+    input.computerOptions,
+  )
+  const record = { ...input, computerOptions }
+
+  localStatsStore.recordPlay(record.gameId, record.durationMs)
+  if (record.result) localStatsStore.recordResult(record.gameId, record.result)
+  if (typeof record.score === 'number') localStatsStore.recordScore(record.gameId, record.score)
+  appendLocalPlayHistory(record)
   invalidatePlayCountsCache()
 
-  void syncToCloud(input).catch((err) => {
+  void syncToCloud(record).catch((err) => {
     console.warn('[stats] cloud sync failed', err)
   })
 }

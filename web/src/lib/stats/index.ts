@@ -13,8 +13,8 @@ export {
 } from './record'
 export { loadGameProfile } from './game-profile'
 export type { GameProfileData } from './game-profile'
-export { modeDisplayLabel, formatHistoryLine, sessionsForMode, computeSessionStats, gameModeFromFavorite } from './history'
-export type { PlayHistoryEntry, SessionStats } from './history'
+export { modeDisplayLabel, formatHistoryLine, formatHistoryRow, sessionsForMode, computeSessionStats, gameModeFromFavorite } from './history'
+export type { PlayHistoryEntry, SessionStats, HistoryTableRow } from './history'
 export {
   computeGameStatDisplay,
   formatAccountGameSummary,

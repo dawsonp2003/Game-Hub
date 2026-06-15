@@ -28,17 +28,22 @@ export default function UltimateTicTacToeBoard({
   const isMobile = useIsMobileViewport()
   const { viewportRef, contentRef, transform } = usePinchPanZoom(isMobile)
 
-  const activeBoard =
+  const validForcedBoard =
     state.forcedBoard !== null && !isMiniClosed(state.miniOutcomes[state.forcedBoard]!)
       ? state.forcedBoard
       : null
 
+  /** Waiting on opponent (or computer) — show where they must play next. */
+  const waitingForOpponent = !canPlay && !state.macroWinner
+
+  const scrollBoard = validForcedBoard
+
   useEffect(() => {
-    if (isMobile || state.macroWinner || activeBoard === null) return
-    const el = miniRefs.current[activeBoard]
+    if (isMobile || state.macroWinner || scrollBoard === null) return
+    const el = miniRefs.current[scrollBoard]
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
-  }, [activeBoard, state.macroWinner, isMobile])
+  }, [scrollBoard, state.macroWinner, isMobile, waitingForOpponent])
 
   const isBoardPlayable = (board: number) => {
     if (!canPlay || state.macroWinner) return false
@@ -49,7 +54,13 @@ export default function UltimateTicTacToeBoard({
 
   const boardGrid = (
     <div
-      className={`uttt__macro ${state.forcedBoard === null && canPlay && !state.macroWinner ? 'uttt__macro--free' : ''}`}
+      className={[
+        'uttt__macro',
+        state.forcedBoard === null && canPlay && !state.macroWinner ? 'uttt__macro--free' : '',
+        waitingForOpponent && validForcedBoard === null ? 'uttt__macro--free' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       role="grid"
       aria-label="Ultimate tic tac toe board"
     >
@@ -57,7 +68,9 @@ export default function UltimateTicTacToeBoard({
         const outcome = state.miniOutcomes[board]!
         const closed = isMiniClosed(outcome)
         const playable = isBoardPlayable(board)
-        const isTarget = activeBoard === board
+        const isOpponentTarget =
+          waitingForOpponent &&
+          (validForcedBoard !== null ? board === validForcedBoard : !closed)
 
         return (
           <div
@@ -68,9 +81,12 @@ export default function UltimateTicTacToeBoard({
             className={[
               'uttt__mini',
               playable ? 'uttt__mini--active' : '',
+              isOpponentTarget ? 'uttt__mini--next' : '',
               !playable && !closed && canPlay ? 'uttt__mini--dimmed' : '',
+              waitingForOpponent && validForcedBoard !== null && board !== validForcedBoard && !closed
+                ? 'uttt__mini--dimmed'
+                : '',
               closed ? 'uttt__mini--closed' : '',
-              isTarget ? 'uttt__mini--target' : '',
             ]
               .filter(Boolean)
               .join(' ')}

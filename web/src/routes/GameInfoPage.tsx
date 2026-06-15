@@ -9,6 +9,7 @@ import {
   sessionsForMode,
   computeGameStatDisplay,
   gameModeFromFavorite,
+  formatHistoryRow,
   type GameProfileData,
 } from '../lib/stats'
 import GameCover from '../components/GameCover'
@@ -254,8 +255,14 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
   )
 }
 
-function RecentGamesPanel({ profile }: { profile: GameProfileData | null }) {
-  const count = profile?.recentLabels.length ?? 0
+function RecentGamesPanel({
+  gameId,
+  profile,
+}: {
+  gameId: string
+  profile: GameProfileData | null
+}) {
+  const count = profile?.recent.length ?? 0
 
   return (
     <details className="game-info__recent">
@@ -271,11 +278,39 @@ function RecentGamesPanel({ profile }: { profile: GameProfileData | null }) {
         ) : count === 0 ? (
           <p className="game-info__muted">Your last 20 sessions will show up here.</p>
         ) : (
-          <ol className="game-info__recent-list">
-            {profile.recentLabels.map((line, i) => (
-              <li key={`${line}-${i}`}>{line}</li>
-            ))}
-          </ol>
+          <div className="game-info__recent-table-wrap">
+            <table className="game-info__recent-table">
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Mode</th>
+                  <th scope="col">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {profile.recent.map((entry, i) => {
+                  const row = formatHistoryRow(entry, gameId)
+                  return (
+                    <tr key={`${entry.playedAt}-${i}`}>
+                      <td>{row.date}</td>
+                      <td>{row.mode}</td>
+                      <td
+                        className={
+                          entry.result === 'win'
+                            ? 'game-info__recent-result--win'
+                            : entry.result === 'loss'
+                              ? 'game-info__recent-result--loss'
+                              : undefined
+                        }
+                      >
+                        {row.result}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </details>
@@ -319,7 +354,7 @@ function GameInfoAside({
         )}
       </div>
 
-      <RecentGamesPanel profile={profile} />
+      <RecentGamesPanel gameId={game.id} profile={profile} />
     </>
   )
 }

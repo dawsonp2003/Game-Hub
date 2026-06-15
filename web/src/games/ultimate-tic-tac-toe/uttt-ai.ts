@@ -1,7 +1,6 @@
 import {
   applyMove,
   getLegalMoves,
-  pickAiMoveHard,
   scoreMoveHeuristic,
   type Player,
   type UtttMove,
@@ -12,14 +11,8 @@ const WIN = 100_000
 const LOSE = -100_000
 const DRAW = 0
 
-const FULL_TIME_MS = 8_000
-const FULL_MAX_DEPTH = 10
-const HALF_TIME_MS = 4_000
-const HALF_MAX_DEPTH = 5
-
-/** AI moves 1–5 use Hard; 6–15 ramp depth/time; 16+ full expert search. */
-const FAST_AI_PLIES = 5
-const RAMP_AI_PLIES = 15
+const EXPERT_TIME_MS = 8_000
+const EXPERT_MAX_DEPTH = 10
 
 /** Only trim wide trees below the root. */
 const NODE_BEAM = 18
@@ -44,36 +37,10 @@ interface TTEntry {
   flag: TTFlag
 }
 
-interface SearchBudget {
-  timeMs: number
-  maxDepth: number
-}
-
 let transposition = new Map<string, TTEntry>()
 
 function opponentOf(player: Player): Player {
   return player === 'X' ? 'O' : 'X'
-}
-
-function aiPliesPlayed(state: UtttState, ai: Player): number {
-  return state.cells.filter((c) => c === ai).length
-}
-
-/** Depth and time scale from half → full over AI plies 6–15. */
-function expertSearchBudget(state: UtttState, ai: Player): SearchBudget | 'hard' {
-  const plies = aiPliesPlayed(state, ai)
-
-  if (plies < FAST_AI_PLIES) return 'hard'
-
-  if (plies >= RAMP_AI_PLIES) {
-    return { timeMs: FULL_TIME_MS, maxDepth: FULL_MAX_DEPTH }
-  }
-
-  const t = (plies - FAST_AI_PLIES) / (RAMP_AI_PLIES - FAST_AI_PLIES)
-  return {
-    timeMs: Math.round(HALF_TIME_MS + t * (FULL_TIME_MS - HALF_TIME_MS)),
-    maxDepth: Math.round(HALF_MAX_DEPTH + t * (FULL_MAX_DEPTH - HALF_MAX_DEPTH)),
-  }
 }
 
 function moveKey(m: UtttMove): string {
@@ -272,7 +239,7 @@ function negamax(
   return best
 }
 
-function pickAiMoveDeep(state: UtttState, ai: Player, budget: SearchBudget): UtttMove | null {
+function pickAiMoveDeep(state: UtttState, ai: Player): UtttMove | null {
   const legal = getLegalMoves(state)
   if (legal.length === 0) return null
 
@@ -281,14 +248,14 @@ function pickAiMoveDeep(state: UtttState, ai: Player, budget: SearchBudget): Utt
   }
 
   transposition.clear()
-  const deadline = Date.now() + budget.timeMs
+  const deadline = Date.now() + EXPERT_TIME_MS
   const rootScores = new Map<string, number>()
 
   let candidates = orderMoves(state, legal, ai)
   let bestMove = candidates[0]!
   let completedDepth = 0
 
-  for (let depth = 1; depth <= budget.maxDepth; depth++) {
+  for (let depth = 1; depth <= EXPERT_MAX_DEPTH; depth++) {
     if (Date.now() >= deadline) break
 
     candidates = orderMoves(state, legal, ai, rootScores)
@@ -328,20 +295,7 @@ function pickAiMoveDeep(state: UtttState, ai: Player, budget: SearchBudget): Utt
   return completedDepth > 0 ? bestMove : (candidates[0] ?? legal[0]!)
 }
 
-/** True when Expert will run iterative deepening (not the opening Hard pass). */
-export function expertUsesDeepSearch(state: UtttState, ai: Player): boolean {
-  return expertSearchBudget(state, ai) !== 'hard'
-}
-
-/**
- * Expert: fast Hard search early, ramp depth/time over the next 10 AI moves, then full deep search.
- */
+/** Deep search with iterative deepening, move ordering, and transposition table. */
 export function pickAiMoveExpert(state: UtttState, ai: Player): UtttMove | null {
-  const profile = expertSearchBudget(state, ai)
-
-  if (profile === 'hard') {
-    return pickAiMoveHard(state, ai)
-  }
-
-  return pickAiMoveDeep(state, ai, profile)
+  return pickAiMoveDeep(state, ai)
 }

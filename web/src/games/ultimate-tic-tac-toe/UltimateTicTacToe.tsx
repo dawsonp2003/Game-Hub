@@ -7,7 +7,6 @@ import type { GameProps } from '../types'
 import { AsyncMatchSession } from '../../lib/multiplayer/async-session'
 import { recordGameEnd } from '../../lib/stats'
 import UltimateTicTacToeBoard, { statusForState } from './UltimateTicTacToeBoard'
-import { expertUsesDeepSearch } from './uttt-ai'
 import {
   applyMove,
   createInitialState,
@@ -181,7 +180,7 @@ export default function UltimateTicTacToe({
 
   useEffect(() => {
     if (!isAI || state.current !== 'O' || state.macroWinner) return
-    const thinkMs = aiDifficulty === 'expert' ? 80 : 450
+    const thinkMs = aiDifficulty === 'expert' ? 50 : 450
     const t = setTimeout(() => {
       const move = pickAiMove(stateRef.current, 'O', aiDifficulty)
       if (move) playMove(move)
@@ -213,9 +212,7 @@ export default function UltimateTicTacToe({
     if (isPassAndPlay && !state.macroWinner) return `${state.current}'s turn`
     if (isAI && !state.macroWinner) {
       if (state.current === 'X') return 'Your turn (X)'
-      return aiDifficulty === 'expert' && expertUsesDeepSearch(state, 'O')
-        ? 'Computer thinking deeply…'
-        : 'Computer thinking…'
+      return aiDifficulty === 'expert' ? 'Computer thinking deeply…' : 'Computer thinking…'
     }
     return null
   }
