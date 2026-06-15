@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useIsMobileViewport } from '../../hooks/usePinchPanZoom'
 import type { GameProps } from '../types'
 import { recordGameEnd, stats } from '../../lib/stats'
+import SnakeJoystick from './SnakeJoystick'
 import './Snake.css'
 
 const GRID = 16
@@ -32,22 +34,25 @@ const OPPOSITE: Record<Dir, Dir> = {
 }
 
 export default function Snake({ onExit }: GameProps) {
+  const isMobile = useIsMobileViewport()
   const [snake, setSnake] = useState<Point[]>([
     { x: 8, y: 8 },
     { x: 7, y: 8 },
     { x: 6, y: 8 },
   ])
   const [food, setFood] = useState<Point>(() => ({ x: 12, y: 8 }))
-  const [dir, setDir] = useState<Dir>('right')
   const [score, setScore] = useState(0)
   const [gameOver, setGameOver] = useState(false)
   const [paused, setPaused] = useState(false)
-  const dirRef = useRef(dir)
+  const dirRef = useRef<Dir>('right')
+  /** Queued heading applied once at the start of each tick. */
+  const nextDirRef = useRef<Dir>('right')
+  const snakeRef = useRef(snake)
   const scoreRef = useRef(0)
   const startTime = useRef(Date.now())
   const gameId = 'snake'
 
-  dirRef.current = dir
+  snakeRef.current = snake
   scoreRef.current = score
 
   const endGame = useCallback(
@@ -66,6 +71,8 @@ export default function Snake({ onExit }: GameProps) {
 
   const tick = useCallback(() => {
     if (gameOver || paused) return
+
+    dirRef.current = nextDirRef.current
 
     setSnake((prev) => {
       const d = dirRef.current
@@ -98,9 +105,19 @@ export default function Snake({ onExit }: GameProps) {
     return () => clearInterval(id)
   }, [tick])
 
-  const setDirection = (d: Dir) => {
-    setDir((current) => (OPPOSITE[current] === d ? current : d))
-  }
+  const setDirection = useCallback((d: Dir) => {
+    const travel = dirRef.current
+    if (OPPOSITE[travel] === d) return
+
+    const head = snakeRef.current[0]
+    const neck = snakeRef.current[1]
+    if (head && neck) {
+      const delta = DIR_DELTA[d]
+      if (head.x + delta.x === neck.x && head.y + delta.y === neck.y) return
+    }
+
+    nextDirRef.current = d
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -123,7 +140,7 @@ export default function Snake({ onExit }: GameProps) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [setDirection])
 
   const reset = () => {
     setSnake([
@@ -132,7 +149,8 @@ export default function Snake({ onExit }: GameProps) {
       { x: 6, y: 8 },
     ])
     setFood({ x: 12, y: 8 })
-    setDir('right')
+    dirRef.current = 'right'
+    nextDirRef.current = 'right'
     setScore(0)
     setGameOver(false)
     setPaused(false)
@@ -187,22 +205,26 @@ export default function Snake({ onExit }: GameProps) {
         </div>
       )}
 
-      <div className="snake-game__controls">
-        <button type="button" className="snake-game__pad" onClick={() => setDirection('up')} aria-label="Up">
-          ▲
-        </button>
-        <div className="snake-game__pad-row">
-          <button type="button" className="snake-game__pad" onClick={() => setDirection('left')} aria-label="Left">
-            ◀
+      {isMobile ? (
+        <SnakeJoystick onDirection={setDirection} disabled={gameOver || paused} />
+      ) : (
+        <div className="snake-game__controls">
+          <button type="button" className="snake-game__pad" onClick={() => setDirection('up')} aria-label="Up">
+            ▲
           </button>
-          <button type="button" className="snake-game__pad" onClick={() => setDirection('down')} aria-label="Down">
-            ▼
-          </button>
-          <button type="button" className="snake-game__pad" onClick={() => setDirection('right')} aria-label="Right">
-            ▶
-          </button>
+          <div className="snake-game__pad-row">
+            <button type="button" className="snake-game__pad" onClick={() => setDirection('left')} aria-label="Left">
+              ◀
+            </button>
+            <button type="button" className="snake-game__pad" onClick={() => setDirection('down')} aria-label="Down">
+              ▼
+            </button>
+            <button type="button" className="snake-game__pad" onClick={() => setDirection('right')} aria-label="Right">
+              ▶
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
