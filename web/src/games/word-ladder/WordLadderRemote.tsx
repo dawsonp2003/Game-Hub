@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { GameMode } from '../../lib/multiplayer/types'
 import type { GameProps } from '../types'
 import WordSetterSetup from '../../components/WordSetterSetup'
 import '../../components/WordSetterSetup.css'
@@ -26,7 +27,8 @@ export default function WordLadderRemote({
   session,
   peerAway = false,
   onExit,
-}: Pick<GameProps, 'session' | 'peerAway' | 'onExit'>) {
+  mode = 'remote',
+}: Pick<GameProps, 'session' | 'peerAway' | 'onExit'> & { mode?: GameMode }) {
   const [phase, setPhase] = useState<Phase>('setup')
   const [myLadderSent, setMyLadderSent] = useState(false)
   const [myLadderForPeer, setMyLadderForPeer] = useState<LadderPair | null>(null)
@@ -94,7 +96,7 @@ export default function WordLadderRemote({
         : undefined
     recordGameEnd({
       gameId,
-      mode: 'remote',
+      mode,
       result,
       durationMs: Date.now() - startTime.current,
       startedAt: startTime.current,

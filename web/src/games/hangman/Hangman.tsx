@@ -6,11 +6,30 @@ import { pickRandomHangmanWord } from '../../lib/words'
 import HangmanLocalBoard, { MAX_WRONG } from './HangmanLocalBoard'
 import HangmanPassAndPlay from './HangmanPassAndPlay'
 import HangmanRemote from './HangmanRemote'
+import HangmanAsync from './HangmanAsync'
 import './Hangman.css'
 
-export default function Hangman({ mode, session, peerAway = false, onExit }: GameProps) {
+export default function Hangman({
+  mode,
+  session,
+  peerAway = false,
+  asyncMatchId,
+  onCheckpointClear,
+  onExit,
+}: GameProps) {
   if (mode === 'pass-and-play') {
     return <HangmanPassAndPlay onExit={onExit} />
+  }
+
+  if (mode === 'async') {
+    return (
+      <HangmanAsync
+        session={session}
+        asyncMatchId={asyncMatchId}
+        onExit={onExit}
+        onCheckpointClear={onCheckpointClear}
+      />
+    )
   }
 
   if (mode === 'remote') {

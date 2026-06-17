@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { recordGameEnd } from '../../lib/stats'
+import type { GameMode } from '../../lib/multiplayer/types'
 import type { GameProps } from '../types'
 import ChainSetterSetup from './ChainSetterSetup'
 import WordChainBoard from './WordChainBoard'
@@ -23,7 +24,8 @@ export default function WordChainRemote({
   session,
   peerAway = false,
   onExit,
-}: Pick<GameProps, 'session' | 'peerAway' | 'onExit'>) {
+  mode = 'remote',
+}: Pick<GameProps, 'session' | 'peerAway' | 'onExit'> & { mode?: GameMode }) {
   const [phase, setPhase] = useState<Phase>('setup')
   const [myChainSent, setMyChainSent] = useState(false)
   const [myChainForPeer, setMyChainForPeer] = useState<string[] | null>(null)
@@ -91,7 +93,7 @@ export default function WordChainRemote({
         : undefined
     recordGameEnd({
       gameId,
-      mode: 'remote',
+      mode,
       result,
       durationMs: Date.now() - startTime.current,
       startedAt: startTime.current,

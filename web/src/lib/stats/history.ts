@@ -88,6 +88,7 @@ export function modeDisplayLabel(
       case 'pass-and-play':
         return 'Pass & Play'
       case 'remote':
+      case 'async':
         return 'Online'
       default:
         return mode

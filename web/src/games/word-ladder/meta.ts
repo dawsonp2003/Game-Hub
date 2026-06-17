@@ -8,7 +8,8 @@ export const wordLadder: GameDef = {
     'Start from the first word and change exactly one letter per step until you reach the target word. Every step must be a valid English word. Solo mode lets you find your own path; versus modes compare who finishes in fewer moves.',
   icon: '🪜',
   category: 'word',
-  modes: ['single', 'pass-and-play', 'remote'],
+  modes: ['single', 'pass-and-play', 'async'],
+  checkpointModes: ['single', 'pass-and-play', 'async'],
   status: 'live',
   load: () => import('./WordLadder'),
 }

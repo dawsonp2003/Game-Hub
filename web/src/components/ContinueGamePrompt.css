@@ -1,0 +1,26 @@
+.continue-prompt {
+  max-width: 22rem;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  text-align: center;
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-raised, #1a1a2e);
+  border: 1px solid var(--border, #333);
+}
+
+.continue-prompt__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+.continue-prompt__text {
+  margin: 0 0 1.25rem;
+  color: var(--text-muted, #aab);
+  line-height: 1.45;
+}
+
+.continue-prompt__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}

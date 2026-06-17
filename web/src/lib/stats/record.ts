@@ -1,3 +1,4 @@
+import { isPermanentAccount } from '../auth/anonymous'
 import { resolveRecordedComputerOptions } from '../computer-options'
 import { supabase } from '../supabase/client'
 import { appendLocalPlayHistory } from './history'
@@ -14,6 +15,7 @@ function opponentForMode(mode: string): Opponent {
     case 'ai':
       return 'computer'
     case 'remote':
+    case 'async':
       return 'user'
     case 'pass-and-play':
       return 'guest'
@@ -26,7 +28,7 @@ function opponentForMode(mode: string): Opponent {
 async function syncToCloud(input: GameEndInput): Promise<void> {
   if (!supabase) return
   const { data } = await supabase.auth.getSession()
-  if (!data.session) return
+  if (!data.session || !isPermanentAccount(data.session.user)) return
 
   const turns = input.turns && input.turns > 0 ? input.turns : null
   const avgTurnSec = turns ? Math.round(input.durationMs / turns / 1000) : null
@@ -78,7 +80,7 @@ export function recordGameEnd(input: GameEndInput): void {
 export async function fetchCloudStats(): Promise<GameStats[]> {
   if (!supabase) return []
   const { data: sessionData } = await supabase.auth.getSession()
-  if (!sessionData.session) return []
+  if (!sessionData.session || !isPermanentAccount(sessionData.session.user)) return []
 
   const { data, error } = await supabase
     .from('game_stats')
@@ -136,7 +138,7 @@ export async function fetchPlayCounts(userId?: string): Promise<Record<string, n
     counts = playCountsFromLocal()
   } else {
     const { data: sessionData } = await supabase.auth.getSession()
-    if (!sessionData.session) {
+    if (!sessionData.session || !isPermanentAccount(sessionData.session.user)) {
       counts = playCountsFromLocal()
     } else {
       const rows = await fetchCloudStats()

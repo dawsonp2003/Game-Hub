@@ -8,8 +8,8 @@ export default function WordChain({ mode, session, peerAway = false, onExit }: G
     return <WordChainPassAndPlay onExit={onExit} />
   }
 
-  if (mode === 'remote') {
-    return <WordChainRemote session={session} peerAway={peerAway} onExit={onExit} />
+  if (mode === 'async' || mode === 'remote') {
+    return <WordChainRemote session={session} peerAway={peerAway} onExit={onExit} mode={mode} />
   }
 
   return (

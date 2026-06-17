@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import WordSetterSetup from '../../components/WordSetterSetup'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
+import { usePassAndPlayOpening } from '../../lib/turn-order/usePassAndPlayOpening'
 import { recordGameEnd } from '../../lib/stats'
 import WordLadderBoard from './WordLadderBoard'
 import {
@@ -44,7 +45,9 @@ function PassHandoff({
 }
 
 export default function WordLadderPassAndPlay({ onExit }: { onExit: () => void }) {
-  const [phase, setPhase] = useState<Phase>('set-p1')
+  const gameId = 'word-ladder'
+  const { openingPhase, rotateAfterMatch, nextOpeningPhase } = usePassAndPlayOpening(gameId)
+  const [phase, setPhase] = useState<Phase>(openingPhase)
   /** Ladder Player 2 must solve (set by Player 1). */
   const [ladderForP2, setLadderForP2] = useState<LadderPair | null>(null)
   /** Ladder Player 1 must solve (set by Player 2). */
@@ -52,7 +55,6 @@ export default function WordLadderPassAndPlay({ onExit }: { onExit: () => void }
   const [p1Round, setP1Round] = useState<LadderRoundSummary | null>(null)
   const [p2Round, setP2Round] = useState<LadderRoundSummary | null>(null)
   const startTime = useRef(Date.now())
-  const gameId = 'word-ladder'
 
   const victoryHeadline =
     phase === 'results' && p1Round && p2Round
@@ -61,7 +63,7 @@ export default function WordLadderPassAndPlay({ onExit }: { onExit: () => void }
   useVictoryConfetti(victoryHeadline)
 
   const restart = () => {
-    setPhase('set-p1')
+    setPhase(nextOpeningPhase())
     setLadderForP2(null)
     setLadderForP1(null)
     setP1Round(null)
@@ -86,6 +88,7 @@ export default function WordLadderPassAndPlay({ onExit }: { onExit: () => void }
       durationMs: Date.now() - startTime.current,
       startedAt: startTime.current,
     })
+    rotateAfterMatch()
   }
 
   if (phase === 'set-p1') {

@@ -1,3 +1,4 @@
+import { isPermanentAccount } from '../auth/anonymous'
 import { supabase } from '../supabase/client'
 import {
   favoriteModeFromHistory,
@@ -47,9 +48,10 @@ export async function loadGameProfile(
   allowedModes: string[],
 ): Promise<GameProfileData> {
   const { data: sessionData } = supabase ? await supabase.auth.getSession() : { data: { session: null } }
-  const signedIn = !!sessionData?.session
+  const user = sessionData?.session?.user ?? null
+  const useCloud = isPermanentAccount(user)
 
-  const sessions = signedIn ? await fetchAllCloudSessions(gameId) : getLocalPlayHistory(gameId)
+  const sessions = useCloud ? await fetchAllCloudSessions(gameId) : getLocalPlayHistory(gameId)
   const favoriteMode = favoriteModeFromHistory(sessions, allowedModes)
   const recent = sessions.slice(0, MAX_RECENT)
 

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { useAsyncNotificationsContext } from '../context/AsyncNotificationsContext'
 import { fetchCloudStats, formatAccountGameSummary } from '../lib/stats'
 import type { GameStats } from '../lib/stats'
+import { localStatsStore } from '../lib/stats/local'
 import { getGameById } from '../games/registry'
 import {
   acceptFriendRequest,
@@ -17,6 +18,7 @@ import type { AsyncMatchInvite, Friend, FriendRequest, UserSearchResult } from '
 import AsyncInviteList from './AsyncInviteList'
 import AsyncMatchList from './AsyncMatchList'
 import FriendDetailPanel from './FriendDetailPanel'
+import SaveDataBanner from './SaveDataBanner'
 import './Account.css'
 import './Friends.css'
 
@@ -91,7 +93,9 @@ function AuthPanel() {
     <div className="account-panel">
       <h2 className="account-panel__title">{mode === 'signin' ? 'Sign in' : 'Create account'}</h2>
       <p className="account-panel__subtitle">
-        Save your stats across devices. You can keep playing as a guest without an account.
+        {auth.isAnonymous
+          ? 'Playing as a guest on this device. Create an account to save stats permanently.'
+          : 'Save your stats across devices. You can keep playing as a guest without an account.'}
       </p>
 
       <form className="account-form" onSubmit={submit}>
@@ -177,6 +181,11 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
   const [nameDraft, setNameDraft] = useState(auth.profile?.username ?? '')
   const [savingName, setSavingName] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showUpgrade, setShowUpgrade] = useState(false)
+  const [upgradeEmail, setUpgradeEmail] = useState('')
+  const [upgradePassword, setUpgradePassword] = useState('')
+  const [upgradeUsername, setUpgradeUsername] = useState(auth.profile?.username ?? '')
+  const [upgradeBusy, setUpgradeBusy] = useState(false)
 
   const refreshAll = () => {
     void refresh()
@@ -186,13 +195,19 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     let active = true
     void auth.refreshProfile()
+    if (auth.isAnonymous) {
+      setCloudStats(localStatsStore.getAllStats())
+      return () => {
+        active = false
+      }
+    }
     fetchCloudStats().then((rows) => {
       if (active) setCloudStats(rows)
     })
     return () => {
       active = false
     }
-  }, [auth.user?.id, auth.refreshProfile])
+  }, [auth.user?.id, auth.isAnonymous, auth.refreshProfile])
 
   const saveName = async () => {
     setSavingName(true)
@@ -215,6 +230,63 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="account-panel">
+      {auth.isAnonymous && (
+        <SaveDataBanner
+          onCreateAccount={() => setShowUpgrade(true)}
+        />
+      )}
+
+      {showUpgrade && auth.isAnonymous && (
+        <form
+          className="account-form account-form--upgrade"
+          onSubmit={(e) => {
+            e.preventDefault()
+            setUpgradeBusy(true)
+            setError(null)
+            void auth
+              .signUp(upgradeEmail, upgradePassword, upgradeUsername)
+              .then(() => setShowUpgrade(false))
+              .catch((err) => setError(err instanceof Error ? err.message : 'Could not create account'))
+              .finally(() => setUpgradeBusy(false))
+          }}
+        >
+          <p className="account-panel__subtitle">Create a permanent account — your local stats stay on this device until you play again.</p>
+          <label className="account-field">
+            <span>Profile name</span>
+            <input
+              className="account-input"
+              value={upgradeUsername}
+              onChange={(e) => setUpgradeUsername(e.target.value)}
+              required
+            />
+          </label>
+          <label className="account-field">
+            <span>Email</span>
+            <input
+              className="account-input"
+              type="email"
+              value={upgradeEmail}
+              onChange={(e) => setUpgradeEmail(e.target.value)}
+              required
+            />
+          </label>
+          <label className="account-field">
+            <span>Password</span>
+            <input
+              className="account-input"
+              type="password"
+              value={upgradePassword}
+              onChange={(e) => setUpgradePassword(e.target.value)}
+              minLength={6}
+              required
+            />
+          </label>
+          <button type="submit" className="btn account-submit" disabled={upgradeBusy}>
+            {upgradeBusy ? 'Creating…' : 'Create account'}
+          </button>
+        </form>
+      )}
+
       <div className="account-profile__head">
         {editing ? (
           <div className="account-profile__edit">

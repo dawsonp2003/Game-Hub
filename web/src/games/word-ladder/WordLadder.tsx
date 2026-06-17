@@ -12,8 +12,8 @@ export default function WordLadder({ mode, session, peerAway = false, onExit }: 
     return <WordLadderPassAndPlay onExit={onExit} />
   }
 
-  if (mode === 'remote') {
-    return <WordLadderRemote session={session} peerAway={peerAway} onExit={onExit} />
+  if (mode === 'async' || mode === 'remote') {
+    return <WordLadderRemote session={session} peerAway={peerAway} onExit={onExit} mode={mode} />
   }
 
   const initialPuzzle = pickRandomLadderPuzzle()

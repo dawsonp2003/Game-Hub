@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import WordSetterSetup from '../../components/WordSetterSetup'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
+import { usePassAndPlayOpening } from '../../lib/turn-order/usePassAndPlayOpening'
 import { recordGameEnd } from '../../lib/stats'
 import { MAX_WRONG } from './HangmanFigure'
 import HangmanLocalBoard from './HangmanLocalBoard'
@@ -43,7 +44,9 @@ function PassHandoff({
 }
 
 export default function HangmanPassAndPlay({ onExit }: { onExit: () => void }) {
-  const [phase, setPhase] = useState<Phase>('set-p1')
+  const gameId = 'hangman'
+  const { openingPhase, rotateAfterMatch, nextOpeningPhase } = usePassAndPlayOpening(gameId)
+  const [phase, setPhase] = useState<Phase>(openingPhase)
   const [secretForP2, setSecretForP2] = useState('')
   const [secretForP1, setSecretForP1] = useState('')
   const [p1Round, setP1Round] = useState<HangmanRoundSummary | null>(null)
@@ -51,7 +54,6 @@ export default function HangmanPassAndPlay({ onExit }: { onExit: () => void }) {
 
   const [guessed, setGuessed] = useState<Set<string>>(() => new Set())
   const startTime = useRef(Date.now())
-  const gameId = 'hangman'
 
   const victoryHeadline =
     phase === 'results' && p1Round && p2Round
@@ -60,7 +62,7 @@ export default function HangmanPassAndPlay({ onExit }: { onExit: () => void }) {
   useVictoryConfetti(victoryHeadline)
 
   const restart = () => {
-    setPhase('set-p1')
+    setPhase(nextOpeningPhase())
     setSecretForP2('')
     setSecretForP1('')
     setP1Round(null)
@@ -86,6 +88,7 @@ export default function HangmanPassAndPlay({ onExit }: { onExit: () => void }) {
       durationMs: Date.now() - startTime.current,
       startedAt: startTime.current,
     })
+    rotateAfterMatch()
   }
 
   const wrongCount = (answer: string, g: Set<string>) =>

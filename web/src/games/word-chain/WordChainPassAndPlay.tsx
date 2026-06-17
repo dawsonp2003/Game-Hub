@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
+import { usePassAndPlayOpening } from '../../lib/turn-order/usePassAndPlayOpening'
 import { recordGameEnd } from '../../lib/stats'
 import ChainSetterSetup from './ChainSetterSetup'
 import WordChainBoard from './WordChainBoard'
@@ -42,13 +43,14 @@ function PassHandoff({
 }
 
 export default function WordChainPassAndPlay({ onExit }: { onExit: () => void }) {
-  const [phase, setPhase] = useState<Phase>('set-p1')
+  const gameId = 'word-chain'
+  const { openingPhase, rotateAfterMatch, nextOpeningPhase } = usePassAndPlayOpening(gameId)
+  const [phase, setPhase] = useState<Phase>(openingPhase)
   const [chainForP2, setChainForP2] = useState<string[] | null>(null)
   const [chainForP1, setChainForP1] = useState<string[] | null>(null)
   const [p1Round, setP1Round] = useState<ChainRoundSummary | null>(null)
   const [p2Round, setP2Round] = useState<ChainRoundSummary | null>(null)
   const startTime = useRef(Date.now())
-  const gameId = 'word-chain'
 
   const victoryHeadline =
     phase === 'results' && p1Round && p2Round
@@ -57,7 +59,7 @@ export default function WordChainPassAndPlay({ onExit }: { onExit: () => void })
   useVictoryConfetti(victoryHeadline)
 
   const restart = () => {
-    setPhase('set-p1')
+    setPhase(nextOpeningPhase())
     setChainForP2(null)
     setChainForP1(null)
     setP1Round(null)
@@ -82,6 +84,7 @@ export default function WordChainPassAndPlay({ onExit }: { onExit: () => void })
       durationMs: Date.now() - startTime.current,
       startedAt: startTime.current,
     })
+    rotateAfterMatch()
   }
 
   if (phase === 'set-p1') {

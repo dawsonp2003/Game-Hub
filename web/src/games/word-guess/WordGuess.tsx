@@ -11,6 +11,7 @@ import {
 import { KEYS, MAX_GUESSES } from './WordGuessBoard'
 import WordGuessPassAndPlay from './WordGuessPassAndPlay'
 import WordGuessRemote from './WordGuessRemote'
+import WordGuessAsync from './WordGuessAsync'
 import './WordGuess.css'
 
 const DEFAULT_LEN = 5
@@ -24,9 +25,28 @@ function mergeKeyState(prev: KeyState, next: LetterResult): KeyState {
   return 'unused'
 }
 
-export default function WordGuess({ mode, session, peerAway = false, onExit }: GameProps) {
+export default function WordGuess({
+  mode,
+  session,
+  peerAway = false,
+  asyncMatchId,
+  initialCheckpoint: _initialCheckpoint,
+  onCheckpointClear,
+  onExit,
+}: GameProps) {
   if (mode === 'pass-and-play') {
     return <WordGuessPassAndPlay onExit={onExit} />
+  }
+
+  if (mode === 'async') {
+    return (
+      <WordGuessAsync
+        session={session}
+        asyncMatchId={asyncMatchId}
+        onExit={onExit}
+        onCheckpointClear={onCheckpointClear}
+      />
+    )
   }
 
   if (mode === 'remote') {

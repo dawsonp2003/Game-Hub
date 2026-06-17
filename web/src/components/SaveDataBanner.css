@@ -1,0 +1,28 @@
+.save-data-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: var(--radius-md, 8px);
+  background: color-mix(in srgb, var(--accent, #6c8cff) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #6c8cff) 35%, transparent);
+}
+
+.save-data-banner--compact {
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.save-data-banner__text {
+  flex: 1 1 12rem;
+  margin: 0;
+  line-height: 1.4;
+  color: var(--text-muted, #aab);
+}
+
+.save-data-banner__btn {
+  flex-shrink: 0;
+}

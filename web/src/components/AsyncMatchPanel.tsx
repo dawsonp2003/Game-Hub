@@ -7,6 +7,7 @@ import {
   pruneMyStaleMatches,
 } from '../lib/async/matches'
 import type { AsyncMatchSummary } from '../lib/async/types'
+import SaveDataBanner from './SaveDataBanner'
 import AsyncCreateGameModal from './AsyncCreateGameModal'
 import AsyncJoinGameModal from './AsyncJoinGameModal'
 import AsyncMatchList from './AsyncMatchList'
@@ -30,7 +31,7 @@ export default function AsyncMatchPanel({ gameId, onNeedSignIn }: AsyncMatchPane
   const [joinInitialCode, setJoinInitialCode] = useState('')
 
   const refresh = useCallback(async () => {
-    if (!auth.user) {
+    if (!auth.user || auth.loading) {
       setMatches([])
       setLoading(false)
       return
@@ -46,7 +47,7 @@ export default function AsyncMatchPanel({ gameId, onNeedSignIn }: AsyncMatchPane
     } finally {
       setLoading(false)
     }
-  }, [auth.user, gameId])
+  }, [auth.user, auth.loading, gameId])
 
   useEffect(() => {
     void refresh()
@@ -54,10 +55,10 @@ export default function AsyncMatchPanel({ gameId, onNeedSignIn }: AsyncMatchPane
 
   useEffect(() => {
     const code = parseAsyncCodeFromUrl()
-    if (!code || !auth.user) return
+    if (!code || auth.loading || !auth.user) return
     setJoinInitialCode(code)
     setJoinOpen(true)
-  }, [auth.user])
+  }, [auth.user, auth.loading])
 
   const handleDelete = async (matchId: string) => {
     setBusy(true)
@@ -73,15 +74,19 @@ export default function AsyncMatchPanel({ gameId, onNeedSignIn }: AsyncMatchPane
   }
 
   if (!auth.enabled) {
-    return <p className="async-panel__muted">Async games require Supabase to be configured.</p>
+    return <p className="async-panel__muted">Online games require Supabase to be configured.</p>
+  }
+
+  if (auth.loading) {
+    return <p className="async-panel__muted">Connecting…</p>
   }
 
   if (!auth.user) {
     return (
       <div className="async-panel">
-        <p className="async-panel__muted">Sign in to play async saved games.</p>
+        <p className="async-panel__muted">Could not start a session. Try refreshing the page.</p>
         <button type="button" className="btn btn-secondary" onClick={onNeedSignIn}>
-          Sign in
+          Account
         </button>
       </div>
     )
@@ -90,6 +95,10 @@ export default function AsyncMatchPanel({ gameId, onNeedSignIn }: AsyncMatchPane
   return (
     <>
       <div className="async-panel">
+        {auth.isAnonymous && (
+          <SaveDataBanner compact onCreateAccount={onNeedSignIn} />
+        )}
+
         {error && <p className="async-panel__error">{error}</p>}
 
         <div className="async-panel__actions-row">

@@ -8,7 +8,8 @@ export const hangman: GameDef = {
     'Pick a letter. Correct guesses reveal every matching spot in the word. Wrong guesses add a piece to the hangman — you lose after too many mistakes. In pass-and-play or online, take turns guessing until someone solves the word or runs out of chances.',
   icon: '🪢',
   category: 'word',
-  modes: ['single', 'pass-and-play', 'remote'],
+  modes: ['single', 'pass-and-play', 'async'],
+  checkpointModes: ['single', 'pass-and-play', 'async'],
   status: 'live',
   load: () => import('./Hangman'),
 }

@@ -10,6 +10,12 @@ import type { AsyncMatchRow } from '../async/types'
 import type { ConnectionState, MultiplayerSession, SessionRole } from './session'
 
 const BOARD_GAMES = new Set(['tic-tac-toe', 'ultimate-tic-tac-toe'])
+const WORD_RPC_GAMES = new Set(['word-guess', 'hangman'])
+
+/** Games that persist moves via append_async_move (not word RPC helpers). */
+function usesAppendMove(gameId: string): boolean {
+  return !WORD_RPC_GAMES.has(gameId)
+}
 
 export interface AsyncSessionOptions {
   matchId: string
@@ -159,8 +165,8 @@ export class AsyncMatchSession implements MultiplayerSession {
     if (!this.match || this.match.status === 'finished') {
       throw new Error('Match is not active')
     }
-    if (!BOARD_GAMES.has(this.match.game_id)) {
-      throw new Error('Unsupported game for async moves')
+    if (!usesAppendMove(this.match.game_id)) {
+      throw new Error('Use word game RPC helpers for this game')
     }
 
     const opponent = this.opponentUserId()
@@ -172,10 +178,30 @@ export class AsyncMatchSession implements MultiplayerSession {
       throw new Error('Waiting for opponent to join')
     }
 
-    try {
-      const newSeq = await appendAsyncMove(this.matchId, seqExpected, message, {
-        nextTurn: opponent ?? null,
+    const isBoard = BOARD_GAMES.has(this.match.game_id)
+
+    const attempt = async (): Promise<number> => {
+      return appendAsyncMove(this.matchId, seqExpected, message, {
+        nextTurn: isBoard ? (opponent ?? null) : null,
       })
+    }
+
+    try {
+      let newSeq: number
+      try {
+        newSeq = await attempt()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : ''
+        if (msg.includes('stale move sequence')) {
+          const moves = await fetchAsyncMoves(this.matchId)
+          this.moveCount = moves.length
+          newSeq = await appendAsyncMove(this.matchId, this.moveCount, message, {
+            nextTurn: isBoard ? (opponent ?? null) : null,
+          })
+        } else {
+          throw err
+        }
+      }
       this.moveCount = newSeq
       this.replayedSeq.add(newSeq)
       if (this.match) {

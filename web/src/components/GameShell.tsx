@@ -8,14 +8,24 @@ import {
   type ComponentType,
 } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { useRoom } from '../context/RoomContext'
 import type { GameDef, GameProps } from '../games/types'
+import { useUnloadGuard } from '../hooks/useUnloadGuard'
+import {
+  clearLocalCheckpoint,
+  hasLocalCheckpoint,
+  loadLocalCheckpoint,
+} from '../lib/checkpoint'
 import type { GameMode } from '../lib/multiplayer/types'
+import { MODE_LABELS } from '../lib/multiplayer/types'
 import type { ComputerOptions } from '../lib/computer-options'
 import { resolveComputerOptions } from '../lib/computer-options'
 import { createAsyncMatchSession } from '../lib/multiplayer/async-session'
 import { createLocalSession, type MultiplayerSession } from '../lib/multiplayer/session'
+import ContinueGamePrompt from './ContinueGamePrompt'
 import GameHowToModal from './GameHowToModal'
+import InfoIcon from './InfoIcon'
 import RoomMenuButton from './RoomMenuButton'
 import RoomSuggestionChip from './RoomSuggestionChip'
 import './GameShell.css'
@@ -26,6 +36,7 @@ type PlayLocationState = {
   computerOptions?: ComputerOptions
   matchId?: string
   fromAccount?: boolean
+  freshStart?: boolean
 }
 
 interface GameShellProps {
@@ -35,12 +46,14 @@ interface GameShellProps {
 export default function GameShell({ game }: GameShellProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  const auth = useAuth()
   const room = useRoom()
   const locationState = location.state as PlayLocationState | null
   const requestedMode = locationState?.mode
   const requestedComputerOptions = locationState?.computerOptions
   const requestedMatchId = locationState?.matchId
   const fromAccount = locationState?.fromAccount === true
+  const freshStart = locationState?.freshStart === true
 
   const [mode, setMode] = useState<GameMode | null>(null)
   const [computerOptions, setComputerOptions] = useState<ComputerOptions | undefined>()
@@ -51,6 +64,18 @@ export default function GameShell({ game }: GameShellProps) {
   const [asyncError, setAsyncError] = useState<string | null>(null)
   const asyncSessionGen = useRef(0)
   const [GameComponent, setGameComponent] = useState<ComponentType<GameProps> | null>(null)
+
+  const [resumeChoice, setResumeChoice] = useState<'pending' | 'continue' | 'new'>('pending')
+  const [initialCheckpoint, setInitialCheckpoint] = useState<unknown>(undefined)
+
+  const checkpointEnabled =
+    !!mode &&
+    !!game.checkpointModes?.includes(mode) &&
+    mode !== 'async' &&
+    !!auth.user &&
+    !freshStart
+
+  useUnloadGuard(auth.isPermanent && checkpointEnabled)
 
   useEffect(() => {
     let cancelled = false
@@ -78,6 +103,7 @@ export default function GameShell({ game }: GameShellProps) {
         return
       }
       setMode('async')
+      setResumeChoice('continue')
       return
     }
 
@@ -107,6 +133,24 @@ export default function GameShell({ game }: GameShellProps) {
     game.computerOptions,
     navigate,
   ])
+
+  useEffect(() => {
+    if (!checkpointEnabled || !mode || !auth.user) {
+      setResumeChoice('continue')
+      return
+    }
+    if (freshStart) {
+      clearLocalCheckpoint(auth.user.id, game.id, mode)
+      setResumeChoice('new')
+      setInitialCheckpoint(undefined)
+      return
+    }
+    if (hasLocalCheckpoint(auth.user.id, game.id, mode)) {
+      setResumeChoice('pending')
+    } else {
+      setResumeChoice('continue')
+    }
+  }, [checkpointEnabled, mode, auth.user, game.id, freshStart])
 
   useEffect(() => {
     if (mode !== 'async' || !requestedMatchId) {
@@ -178,9 +222,34 @@ export default function GameShell({ game }: GameShellProps) {
     navigate(`/game/${game.id}`)
   }, [game.id, navigate, room.isInRoom, fromAccount])
 
+  const handleContinueSaved = useCallback(() => {
+    if (!auth.user || !mode) return
+    const cp = loadLocalCheckpoint(auth.user.id, game.id, mode)
+    setInitialCheckpoint(cp?.state)
+    setResumeChoice('continue')
+  }, [auth.user, game.id, mode])
+
+  const handleStartNew = useCallback(() => {
+    if (auth.user && mode) {
+      clearLocalCheckpoint(auth.user.id, game.id, mode)
+    }
+    setInitialCheckpoint(undefined)
+    setResumeChoice('new')
+  }, [auth.user, game.id, mode])
+
+  const handleCheckpointClear = useCallback(() => {
+    if (auth.user && mode) {
+      clearLocalCheckpoint(auth.user.id, game.id, mode)
+    }
+  }, [auth.user, game.id, mode])
+
+  const showResumePrompt = checkpointEnabled && resumeChoice === 'pending' && mode
+
   const readyToPlay =
     mode &&
     GameComponent &&
+    !showResumePrompt &&
+    resumeChoice !== 'pending' &&
     (mode !== 'async' || (!asyncLoading && asyncSession && !asyncError))
 
   return (
@@ -194,11 +263,11 @@ export default function GameShell({ game }: GameShellProps) {
         </h1>
         <button
           type="button"
-          className="game-shell__info btn-ghost"
+          className="game-shell__info"
           onClick={() => setHowToOpen(true)}
           aria-label="How to play"
         >
-          ℹ
+          <InfoIcon />
         </button>
         {(room.isInRoom || room.roomPanelOpen) && <RoomMenuButton />}
       </header>
@@ -206,12 +275,6 @@ export default function GameShell({ game }: GameShellProps) {
       {room.role === 'host' && room.suggestion && !room.roomPanelOpen && (
         <div className="game-shell__room-extras">
           <RoomSuggestionChip />
-        </div>
-      )}
-
-      {room.isInRoom && game.modes.includes('remote') && !room.isPlayReady && (
-        <div className="game-shell__room-banner">
-          Join a room and connect on the home page to play remotely.
         </div>
       )}
 
@@ -224,6 +287,15 @@ export default function GameShell({ game }: GameShellProps) {
           <p className="game-shell__loading">Loading saved game…</p>
         )}
 
+        {showResumePrompt && (
+          <ContinueGamePrompt
+            gameName={game.name}
+            modeLabel={MODE_LABELS[mode]}
+            onContinue={handleContinueSaved}
+            onNewGame={handleStartNew}
+          />
+        )}
+
         {readyToPlay && (
           <Suspense fallback={<p className="game-shell__loading">Loading game…</p>}>
             <GameComponent
@@ -232,6 +304,8 @@ export default function GameShell({ game }: GameShellProps) {
               peerAway={mode === 'remote' && room.status === 'peer-away'}
               computerOptions={mode === 'ai' ? computerOptions : undefined}
               asyncMatchId={mode === 'async' ? requestedMatchId : undefined}
+              initialCheckpoint={initialCheckpoint}
+              onCheckpointClear={handleCheckpointClear}
               onExit={handleExit}
             />
           </Suspense>

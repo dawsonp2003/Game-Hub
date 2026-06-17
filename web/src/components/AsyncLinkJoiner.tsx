@@ -30,10 +30,11 @@ export default function AsyncLinkJoiner() {
     const code = parseAsyncCodeFromUrl() ?? takePendingAsyncCode()
     if (!code) return
 
+    if (auth.loading) return
+
     if (!auth.user) {
       stashPendingAsyncCode(code)
       clearAsyncCodeFromUrl()
-      navigate('/', { state: { openAccount: true }, replace: true })
       return
     }
 
@@ -51,12 +52,12 @@ export default function AsyncLinkJoiner() {
         navigate(`/play/${gameId}`, { state: { mode: 'async', matchId }, replace: true })
       })
       .catch(() => {
-        navigate('/', { replace: true })
+        navigate(`/`, { replace: true })
       })
       .finally(() => {
         joiningRef.current = false
       })
-  }, [auth.user, navigate])
+  }, [auth.user, auth.loading, navigate])
 
   return null
 }

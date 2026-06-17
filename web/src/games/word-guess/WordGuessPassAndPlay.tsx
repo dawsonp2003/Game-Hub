@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import WordSetterSetup from '../../components/WordSetterSetup'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
+import { usePassAndPlayOpening } from '../../lib/turn-order/usePassAndPlayOpening'
 import { recordGameEnd } from '../../lib/stats'
 import WordGuessBoard, { type GuessRoundResult } from './WordGuessBoard'
 import { formatRoundLine, matchWinner, type RoundSummary } from './word-guess-match'
@@ -42,7 +43,9 @@ function PassHandoff({
 }
 
 export default function WordGuessPassAndPlay({ onExit }: { onExit: () => void }) {
-  const [phase, setPhase] = useState<Phase>('set-p1')
+  const gameId = 'word-guess'
+  const { openingPhase, rotateAfterMatch, nextOpeningPhase } = usePassAndPlayOpening(gameId)
+  const [phase, setPhase] = useState<Phase>(openingPhase)
   /** Word Player 2 must guess (chosen by Player 1). */
   const [secretForP2, setSecretForP2] = useState('')
   /** Word Player 1 must guess (chosen by Player 2). */
@@ -50,7 +53,6 @@ export default function WordGuessPassAndPlay({ onExit }: { onExit: () => void })
   const [p1Round, setP1Round] = useState<RoundSummary | null>(null)
   const [p2Round, setP2Round] = useState<RoundSummary | null>(null)
   const startTime = useRef(Date.now())
-  const gameId = 'word-guess'
 
   const victoryHeadline =
     phase === 'results' && p1Round && p2Round
@@ -59,7 +61,7 @@ export default function WordGuessPassAndPlay({ onExit }: { onExit: () => void })
   useVictoryConfetti(victoryHeadline)
 
   const restart = () => {
-    setPhase('set-p1')
+    setPhase(nextOpeningPhase())
     setSecretForP2('')
     setSecretForP1('')
     setP1Round(null)
@@ -84,6 +86,7 @@ export default function WordGuessPassAndPlay({ onExit }: { onExit: () => void })
       durationMs: Date.now() - startTime.current,
       startedAt: startTime.current,
     })
+    rotateAfterMatch()
   }
 
   if (phase === 'set-p1') {

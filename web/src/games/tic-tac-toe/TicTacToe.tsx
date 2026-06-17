@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
+import { useAuth } from '../../context/AuthContext'
 import { useRoom } from '../../context/RoomContext'
 import { getComputerOptionString } from '../../lib/computer-options'
+import { useGameCheckpoint } from '../../lib/checkpoint'
+import { firstPlayerFromAsyncMatch } from '../../lib/turn-order/async-opening'
+import {
+  getNextTurnSlot,
+  prefetchTurnOrder,
+  rotateTurnSlot,
+  xFromSlot,
+  type TurnSlot,
+} from '../../lib/turn-order'
 import type { GameProps } from '../types'
 import { AsyncMatchSession } from '../../lib/multiplayer/async-session'
 import { recordGameEnd } from '../../lib/stats'
@@ -42,6 +52,15 @@ type TttMessage =
   | { type: 'ttt:reset'; firstPlayer: Player }
   | { type: 'ttt:session-score'; wins: SessionWins }
 
+interface TttCheckpointState {
+  board: Cell[]
+  firstPlayer: Player
+  current: Player
+  winner: Player | 'draw' | null
+  sessionWins: SessionWins
+  startedAt: number
+}
+
 function nextFirstPlayer(current: Player): Player {
   return current === 'X' ? 'O' : 'X'
 }
@@ -51,26 +70,71 @@ export default function TicTacToe({
   session,
   peerAway = false,
   computerOptions,
+  initialCheckpoint,
+  onCheckpointClear,
   onExit,
 }: GameProps) {
+  const gameId = 'tic-tac-toe'
+  const restored = initialCheckpoint as TttCheckpointState | undefined
+  const auth = useAuth()
   const room = useRoom()
-  const [board, setBoard] = useState<Cell[]>(Array(9).fill(null))
-  const [firstPlayer, setFirstPlayer] = useState<Player>('X')
-  const [current, setCurrent] = useState<Player>('X')
-  const [winner, setWinner] = useState<Player | 'draw' | null>(null)
-  const [sessionWins, setSessionWins] = useState<SessionWins>({ host: 0, guest: 0 })
-  const startTime = useRef(Date.now())
+  const openingSlotRef = useRef<TurnSlot | null>(null)
+
+  const resolveOpening = (): Player => {
+    if (restored?.firstPlayer) return restored.firstPlayer
+    if (mode === 'async' && session instanceof AsyncMatchSession) {
+      const match = session.getMatch()
+      if (match) return firstPlayerFromAsyncMatch(match)
+    }
+    if (mode === 'ai' || mode === 'pass-and-play') {
+      const slot = getNextTurnSlot(auth.user?.id, gameId, mode)
+      openingSlotRef.current = slot
+      return xFromSlot(slot)
+    }
+    return 'X'
+  }
+
+  const [board, setBoard] = useState<Cell[]>(() => restored?.board ?? Array(9).fill(null))
+  const [firstPlayer, setFirstPlayer] = useState<Player>(resolveOpening)
+  const [current, setCurrent] = useState<Player>(() => restored?.current ?? resolveOpening())
+  const [winner, setWinner] = useState<Player | 'draw' | null>(() => restored?.winner ?? null)
+  const [sessionWins, setSessionWins] = useState<SessionWins>(
+    () => restored?.sessionWins ?? { host: 0, guest: 0 },
+  )
+  const startTime = useRef(restored?.startedAt ?? Date.now())
   const roundScoredRef = useRef(false)
   const boardRef = useRef<Cell[]>(board)
-  const gameId = 'tic-tac-toe'
 
   boardRef.current = board
+
+  useEffect(() => {
+    if (mode === 'ai' || mode === 'pass-and-play') {
+      prefetchTurnOrder(auth.user?.id, gameId, mode)
+    }
+  }, [auth.user?.id, gameId, mode])
 
   const isAsync = mode === 'async'
   const isRemote = mode === 'remote'
   const isNetworked = isRemote || isAsync
   const isAI = mode === 'ai'
   const isPassAndPlay = mode === 'pass-and-play'
+  const checkpointEnabled = (mode === 'ai' || mode === 'pass-and-play') && !winner
+
+  const { clearCheckpoint, debouncedSave } = useGameCheckpoint<TttCheckpointState>({
+    gameId,
+    mode,
+    enabled: checkpointEnabled,
+    getState: () => ({
+      board: boardRef.current,
+      firstPlayer,
+      current,
+      winner,
+      sessionWins,
+      startedAt: startTime.current,
+    }),
+    shouldSave: () => !winner,
+  })
+
   const aiDifficulty = useMemo(
     () => parseTttDifficulty(getComputerOptionString(computerOptions, 'difficulty', 'hard')),
     [computerOptions],
@@ -113,14 +177,21 @@ export default function TicTacToe({
     const empty = Array(9).fill(null) as Cell[]
     boardRef.current = empty
     setFirstPlayer((prev) => {
-      const first = explicitFirst ?? nextFirstPlayer(prev)
+      let first = explicitFirst
+      if (first === undefined && (mode === 'ai' || mode === 'pass-and-play')) {
+        const slot = getNextTurnSlot(auth.user?.id, gameId, mode)
+        openingSlotRef.current = slot
+        first = xFromSlot(slot)
+      } else if (first === undefined) {
+        first = nextFirstPlayer(prev)
+      }
       setCurrent(first)
       return first
     })
     setBoard(empty)
     setWinner(null)
     startTime.current = Date.now()
-  }, [])
+  }, [auth.user?.id, gameId, mode])
 
   const canPlay = useCallback(() => {
     if (winner) return false
@@ -165,8 +236,14 @@ export default function TicTacToe({
             : undefined,
       })
       if (isRemote) recordSessionWin(w)
+      if (mode === 'ai' || mode === 'pass-and-play') {
+        const slot = openingSlotRef.current ?? (firstPlayer === 'O' ? 'player2' : 'player1')
+        rotateTurnSlot(auth.user?.id, gameId, mode, slot)
+      }
+      onCheckpointClear?.()
+      clearCheckpoint()
     },
-    [isAI, isNetworked, isAsync, session, recordSessionWin, mode, computerOptions],
+    [isAI, isNetworked, isAsync, session, recordSessionWin, mode, computerOptions, onCheckpointClear, clearCheckpoint, auth.user?.id, firstPlayer],
   )
 
   const applyMove = useCallback(
@@ -184,8 +261,9 @@ export default function TicTacToe({
       setCurrent(player === 'X' ? 'O' : 'X')
 
       if (outcome) finishRound(outcome)
+      else debouncedSave()
     },
-    [winner, finishRound],
+    [winner, finishRound, debouncedSave],
   )
 
   useEffect(() => {
@@ -239,10 +317,9 @@ export default function TicTacToe({
   }
 
   const reset = () => {
-    const nextFirst = nextFirstPlayer(firstPlayer)
-    resetBoard(nextFirst)
+    resetBoard()
     if (isRemote && session) {
-      session.send({ type: 'ttt:reset', firstPlayer: nextFirst } satisfies TttMessage)
+      session.send({ type: 'ttt:reset', firstPlayer } satisfies TttMessage)
     }
     if (isAsync) return
   }

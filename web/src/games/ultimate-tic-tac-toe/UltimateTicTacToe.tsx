@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVictoryConfetti } from '../../hooks/useVictoryConfetti'
 import { useIsMobileViewport } from '../../hooks/usePinchPanZoom'
+import { useAuth } from '../../context/AuthContext'
 import { useRoom } from '../../context/RoomContext'
 import { getComputerOptionString } from '../../lib/computer-options'
+import { firstPlayerFromAsyncMatch } from '../../lib/turn-order/async-opening'
+import {
+  getNextTurnSlot,
+  prefetchTurnOrder,
+  rotateTurnSlot,
+  xFromSlot,
+  type TurnSlot,
+} from '../../lib/turn-order'
 import type { GameProps } from '../types'
 import { AsyncMatchSession } from '../../lib/multiplayer/async-session'
 import { recordGameEnd } from '../../lib/stats'
@@ -33,16 +42,39 @@ export default function UltimateTicTacToe({
   computerOptions,
   onExit,
 }: GameProps) {
+  const gameId = 'ultimate-tic-tac-toe'
+  const auth = useAuth()
   const room = useRoom()
   const isMobile = useIsMobileViewport()
-  const [firstPlayer, setFirstPlayer] = useState<Player>('X')
-  const [state, setState] = useState<UtttState>(() => createInitialState('X'))
+  const openingSlotRef = useRef<TurnSlot | null>(null)
+
+  const resolveOpening = (): Player => {
+    if (mode === 'async' && session instanceof AsyncMatchSession) {
+      const match = session.getMatch()
+      if (match) return firstPlayerFromAsyncMatch(match)
+    }
+    if (mode === 'ai' || mode === 'pass-and-play') {
+      const slot = getNextTurnSlot(auth.user?.id, gameId, mode)
+      openingSlotRef.current = slot
+      return xFromSlot(slot)
+    }
+    return 'X'
+  }
+
+  const opening = resolveOpening()
+  const [firstPlayer, setFirstPlayer] = useState<Player>(opening)
+  const [state, setState] = useState<UtttState>(() => createInitialState(opening))
   const [lastMove, setLastMove] = useState<UtttMove | null>(null)
   const stateRef = useRef(state)
   const startTime = useRef(Date.now())
-  const gameId = 'ultimate-tic-tac-toe'
 
   stateRef.current = state
+
+  useEffect(() => {
+    if (mode === 'ai' || mode === 'pass-and-play') {
+      prefetchTurnOrder(auth.user?.id, gameId, mode)
+    }
+  }, [auth.user?.id, gameId, mode])
 
   const isAsync = mode === 'async'
   const isRemote = mode === 'remote'
@@ -113,8 +145,12 @@ export default function UltimateTicTacToe({
             ? session.opponentUserId() ?? undefined
             : undefined,
       })
+      if (mode === 'ai' || mode === 'pass-and-play') {
+        const slot = openingSlotRef.current ?? (firstPlayer === 'O' ? 'player2' : 'player1')
+        rotateTurnSlot(auth.user?.id, gameId, mode, slot)
+      }
     },
-    [isAI, isNetworked, isAsync, session, mySymbol, mode, computerOptions],
+    [isAI, isNetworked, isAsync, session, mySymbol, mode, computerOptions, auth.user?.id, firstPlayer],
   )
 
   const playMove = useCallback(
@@ -189,7 +225,14 @@ export default function UltimateTicTacToe({
   }, [isAI, state.current, state.macroWinner, playMove, aiDifficulty])
 
   const reset = () => {
-    const first = nextFirst(firstPlayer)
+    let first: Player
+    if (mode === 'ai' || mode === 'pass-and-play') {
+      const slot = getNextTurnSlot(auth.user?.id, gameId, mode)
+      openingSlotRef.current = slot
+      first = xFromSlot(slot)
+    } else {
+      first = nextFirst(firstPlayer)
+    }
     const s = createInitialState(first)
     stateRef.current = s
     setState(s)

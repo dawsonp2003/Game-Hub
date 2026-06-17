@@ -18,6 +18,10 @@ export interface GameProps {
   computerOptions?: ComputerOptions
   /** Async saved match id when mode is `async`. */
   asyncMatchId?: string
+  /** Restored checkpoint state when resuming a saved game. */
+  initialCheckpoint?: unknown
+  /** Call when the in-progress checkpoint should be discarded. */
+  onCheckpointClear?: () => void
 }
 
 export interface GameDef {
@@ -34,6 +38,8 @@ export interface GameDef {
   /** Popup fields shown before starting vs computer (difficulty, word length, etc.). */
   computerOptions?: ComputerOptionsConfig
   status: GameStatus
+  /** Modes where in-progress state is saved for resume (not snake, etc.). */
+  checkpointModes?: GameMode[]
   load: () => Promise<{ default: ComponentType<GameProps> }>
 }
 
