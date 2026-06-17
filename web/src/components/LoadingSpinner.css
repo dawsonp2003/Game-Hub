@@ -1,0 +1,53 @@
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
+  min-height: 8rem;
+}
+
+.loading-spinner--modal {
+  min-height: 14rem;
+}
+
+.loading-spinner--panel {
+  min-height: 10rem;
+}
+
+.loading-spinner--aside {
+  min-height: 20rem;
+}
+
+.loading-spinner--grid {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.loading-spinner--tab {
+  min-height: 12rem;
+}
+
+.loading-spinner__circle {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border: 2.5px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: loading-spinner-spin 0.7s linear infinite;
+}
+
+.loading-spinner__label {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+@keyframes loading-spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

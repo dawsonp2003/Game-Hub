@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { joinAsyncMatchFromCode } from '../lib/async/matches'
+import { clearAsyncCodeFromUrl, joinAsyncMatchFromCode } from '../lib/async/matches'
+import { takePendingAsyncCode } from './AsyncLinkJoiner'
 import './AsyncNewGameModal.css'
 
 interface AsyncJoinGameModalProps {
@@ -18,18 +19,11 @@ export default function AsyncJoinGameModal({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [joinCode, setJoinCode] = useState(initialCode)
+  const autoJoinedRef = useRef(false)
 
   useEffect(() => {
     setJoinCode(initialCode)
   }, [initialCode])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
 
   const handleJoin = async () => {
     setBusy(true)
@@ -40,6 +34,8 @@ export default function AsyncJoinGameModal({
         setError('That code is for a different game.')
         return
       }
+      clearAsyncCodeFromUrl()
+      takePendingAsyncCode()
       onClose()
       navigate(`/play/${gameId}`, { state: { mode: 'async', matchId } })
     } catch (e) {
@@ -48,6 +44,21 @@ export default function AsyncJoinGameModal({
       setBusy(false)
     }
   }
+
+  useEffect(() => {
+    if (autoJoinedRef.current || initialCode.length !== 6) return
+    autoJoinedRef.current = true
+    void handleJoin()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot auto-join from invite link
+  }, [initialCode])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   return (
     <div className="async-new-modal" role="presentation">

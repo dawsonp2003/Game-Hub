@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { acceptAsyncInvite, dismissAsyncInvite } from '../lib/friends/invites'
 import type { AsyncMatchInvite } from '../lib/friends/types'
 import { getGameById } from '../games/registry'
+import LoadingSpinner from './LoadingSpinner'
 import './Friends.css'
 
 interface AsyncInviteListProps {
@@ -19,7 +20,7 @@ export default function AsyncInviteList({
 }: AsyncInviteListProps) {
   const navigate = useNavigate()
 
-  if (loading) return <p className="account-panel__subtitle">Loading…</p>
+  if (loading) return <LoadingSpinner className="loading-spinner--panel" />
   if (invites.length === 0) return null
 
   const handleAccept = async (invite: AsyncMatchInvite) => {

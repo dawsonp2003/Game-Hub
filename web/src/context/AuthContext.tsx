@@ -10,7 +10,7 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { isAnonymousUser, isPermanentAccount } from '../lib/auth/anonymous'
-import { getDeviceId } from '../lib/auth/device-id'
+import { ensureAnonymousSession } from '../lib/auth/session'
 import { supabase, isSupabaseEnabled } from '../lib/supabase/client'
 
 export interface Profile {
@@ -30,6 +30,8 @@ export interface AuthContextValue {
   isAnonymous: boolean
   /** True when the user has a permanent email/password account. */
   isPermanent: boolean
+  /** True when anonymous sign-in was attempted but no session could be created. */
+  sessionFailed: boolean
   signUp: (email: string, password: string, username: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
@@ -56,25 +58,17 @@ function mapProfile(row: {
   }
 }
 
-async function ensureAnonymousSession(): Promise<void> {
-  if (!supabase) return
-  const { data } = await supabase.auth.getSession()
-  if (data.session) return
-
-  const deviceId = getDeviceId()
-  const suffix = deviceId.slice(0, 4)
-  const { error } = await supabase.auth.signInAnonymously({
-    options: {
-      data: { username: `Guest-${suffix}`, device_id: deviceId },
-    },
-  })
-  if (error) {
-    console.warn('[auth] anonymous sign-in failed', error.message)
+async function establishSession(): Promise<Session | null> {
+  let session = await ensureAnonymousSession()
+  if (!session) {
+    session = await ensureAnonymousSession()
   }
+  return session
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(isSupabaseEnabled)
+  const [sessionFailed, setSessionFailed] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [accountCreationRequested, setAccountCreationRequested] = useState(false)
@@ -104,11 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true
 
     void (async () => {
-      await ensureAnonymousSession()
+      const session = await establishSession()
       if (!active) return
-      const { data } = await supabase.auth.getSession()
-      if (!active) return
-      applySession(data.session)
+      applySession(session)
+      setSessionFailed(!session)
       setLoading(false)
     })()
 
@@ -182,12 +175,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return
     await supabase.auth.signOut()
     setProfile(null)
-    await ensureAnonymousSession()
-    const { data } = await supabase.auth.getSession()
-    setUser(data.session?.user ?? null)
-    userIdRef.current = data.session?.user?.id ?? null
-    if (data.session?.user) {
-      void loadProfile(data.session.user.id)
+    const session = await establishSession()
+    setUser(session?.user ?? null)
+    userIdRef.current = session?.user?.id ?? null
+    setSessionFailed(!session)
+    if (session?.user) {
+      void loadProfile(session.user.id)
     }
   }, [loadProfile])
 
@@ -221,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       enabled: isSupabaseEnabled,
       loading,
+      sessionFailed,
       user,
       profile,
       isAnonymous,
@@ -236,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       loading,
+      sessionFailed,
       user,
       profile,
       isAnonymous,

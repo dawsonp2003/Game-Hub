@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { buildAsyncJoinUrl } from '../lib/async/matches'
 import type { AsyncMatchSummary } from '../lib/async/types'
 import { getGameById } from '../games/registry'
+import LoadingSpinner from './LoadingSpinner'
 import './AsyncMatchPanel.css'
 
 function formatRelative(iso: string): string {
@@ -49,7 +50,7 @@ export default function AsyncMatchList({
   }
 
   if (loading) {
-    return <p className="async-panel__muted">Loading…</p>
+    return <LoadingSpinner className="loading-spinner--panel" />
   }
 
   if (matches.length === 0) {

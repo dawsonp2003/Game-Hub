@@ -19,6 +19,7 @@ import AsyncInviteList from './AsyncInviteList'
 import AsyncMatchList from './AsyncMatchList'
 import FriendDetailPanel from './FriendDetailPanel'
 import SaveDataBanner from './SaveDataBanner'
+import LoadingSpinner from './LoadingSpinner'
 import './Account.css'
 import './Friends.css'
 
@@ -140,22 +141,27 @@ function AuthPanel() {
         {error && <p className="account-error">{error}</p>}
         {notice && <p className="account-notice">{notice}</p>}
 
-        <button type="submit" className="btn" disabled={busy}>
+        <button type="submit" className="btn account-submit" disabled={busy}>
           {busy ? 'Working…' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </button>
       </form>
 
-      <button
-        type="button"
-        className="account-switch"
-        onClick={() => {
-          setMode((m) => (m === 'signin' ? 'signup' : 'signin'))
-          setError(null)
-          setNotice(null)
-        }}
-      >
-        {mode === 'signin' ? 'Need an account? Create one' : 'Already have an account? Sign in'}
-      </button>
+      <div className="account-auth-footer">
+        <p className="account-auth-footer__hint">
+          {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}
+        </p>
+        <button
+          type="button"
+          className="btn btn-secondary account-auth-footer__btn"
+          onClick={() => {
+            setMode((m) => (m === 'signin' ? 'signup' : 'signin'))
+            setError(null)
+            setNotice(null)
+          }}
+        >
+          {mode === 'signin' ? 'Sign up' : 'Sign in'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -176,7 +182,8 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
     (a, b) => new Date(b.lastMoveAt).getTime() - new Date(a.lastMoveAt).getTime(),
   )
   const [tab, setTab] = useState<ProfileTab>('profile')
-  const [cloudStats, setCloudStats] = useState<GameStats[] | null>(null)
+  const [cloudStats, setCloudStats] = useState<GameStats[]>([])
+  const [panelReady, setPanelReady] = useState(false)
   const [editing, setEditing] = useState(false)
   const [nameDraft, setNameDraft] = useState(auth.profile?.username ?? '')
   const [savingName, setSavingName] = useState(false)
@@ -194,16 +201,25 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     let active = true
-    void auth.refreshProfile()
-    if (auth.isAnonymous) {
-      setCloudStats(localStatsStore.getAllStats())
-      return () => {
-        active = false
+    setPanelReady(false)
+
+    void (async () => {
+      try {
+        const stats = auth.isAnonymous
+          ? localStatsStore.getAllStats()
+          : await fetchCloudStats()
+        await auth.refreshProfile()
+        if (!active) return
+        setCloudStats(stats)
+        setPanelReady(true)
+      } catch {
+        if (active) {
+          setCloudStats(auth.isAnonymous ? localStatsStore.getAllStats() : [])
+          setPanelReady(true)
+        }
       }
-    }
-    fetchCloudStats().then((rows) => {
-      if (active) setCloudStats(rows)
-    })
+    })()
+
     return () => {
       active = false
     }
@@ -227,6 +243,14 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
     : null
 
   const turnsBadge = yourTurnCount + pendingAsyncInvites
+
+  if (!panelReady) {
+    return (
+      <div className="account-panel">
+        <LoadingSpinner label="Loading account…" className="loading-spinner--modal" />
+      </div>
+    )
+  }
 
   return (
     <div className="account-panel">
@@ -372,15 +396,13 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
               <span className="account-summary__label">Games played</span>
             </div>
             <div className="account-summary__item">
-              <span className="account-summary__value">{cloudStats?.length ?? 0}</span>
+              <span className="account-summary__value">{cloudStats.length}</span>
               <span className="account-summary__label">Games tried</span>
             </div>
           </div>
 
           <h3 className="account-section__title">Per-game stats</h3>
-          {cloudStats === null ? (
-            <p className="account-panel__subtitle">Loading…</p>
-          ) : cloudStats.length === 0 ? (
+          {cloudStats.length === 0 ? (
             <p className="account-panel__subtitle">No games recorded yet. Go play something!</p>
           ) : (
             <ul className="account-stats">
@@ -530,6 +552,10 @@ function FriendsTab({ onChanged }: { onChanged: () => void }) {
     )
   }
 
+  if (loading) {
+    return <LoadingSpinner label="Loading friends…" className="loading-spinner--tab" />
+  }
+
   return (
     <>
       {error && <p className="account-error">{error}</p>}
@@ -608,9 +634,7 @@ function FriendsTab({ onChanged }: { onChanged: () => void }) {
 
       <section>
         <h3 className="account-section__title">Friends</h3>
-        {loading ? (
-          <p className="account-panel__subtitle">Loading…</p>
-        ) : friends.length === 0 ? (
+        {friends.length === 0 ? (
           <p className="account-panel__subtitle">No friends yet. Search above to add someone.</p>
         ) : (
           <ul className="friends-list">
@@ -677,14 +701,17 @@ function TurnsTab({
     onChanged()
   }
 
+  if (invitesLoading || asyncLoading) {
+    return <LoadingSpinner label="Loading games…" className="loading-spinner--tab" />
+  }
+
   return (
     <>
-      {invites.length > 0 || invitesLoading ? (
+      {invites.length > 0 ? (
         <section className="account-async">
           <h3 className="account-section__title">Game invites</h3>
           <AsyncInviteList
             invites={invites}
-            loading={invitesLoading}
             onChanged={handleInviteChanged}
             onContinue={onClose}
           />
@@ -695,7 +722,6 @@ function TurnsTab({
         <h3 className="account-section__title">Your turn</h3>
         <AsyncMatchList
           matches={asyncMatches}
-          loading={asyncLoading}
           showGameName
           emptyMessage="No games waiting on your move."
           onContinue={onClose}

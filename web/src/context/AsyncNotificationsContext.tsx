@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react'
 import { useAsyncNotifications } from '../hooks/useAsyncNotifications'
 import { useSocialNotifications } from '../hooks/useSocialNotifications'
 import type { AsyncMatchSummary } from '../lib/async/types'
@@ -21,24 +21,36 @@ export function AsyncNotificationsProvider({ children }: { children: ReactNode }
   const asyncNotifs = useAsyncNotifications()
   const socialNotifs = useSocialNotifications()
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     await Promise.all([asyncNotifs.refresh(), socialNotifs.refresh()])
-  }
+  }, [asyncNotifs.refresh, socialNotifs.refresh])
 
-  const value: AsyncNotificationsValue = {
-    matches: asyncNotifs.matches,
-    loading: asyncNotifs.loading,
-    turnByGame: asyncNotifs.turnByGame,
-    yourTurnCount: asyncNotifs.yourTurnCount,
-    pendingFriendRequests: socialNotifs.pendingFriendRequests,
-    pendingAsyncInvites: socialNotifs.pendingAsyncInvites,
-    accountBadgeCount:
-      asyncNotifs.yourTurnCount +
-      socialNotifs.pendingFriendRequests +
+  const value = useMemo<AsyncNotificationsValue>(
+    () => ({
+      matches: asyncNotifs.matches,
+      loading: asyncNotifs.loading,
+      turnByGame: asyncNotifs.turnByGame,
+      yourTurnCount: asyncNotifs.yourTurnCount,
+      pendingFriendRequests: socialNotifs.pendingFriendRequests,
+      pendingAsyncInvites: socialNotifs.pendingAsyncInvites,
+      accountBadgeCount:
+        asyncNotifs.yourTurnCount +
+        socialNotifs.pendingFriendRequests +
+        socialNotifs.pendingAsyncInvites,
+      refresh,
+      refreshSocial: socialNotifs.refresh,
+    }),
+    [
+      asyncNotifs.matches,
+      asyncNotifs.loading,
+      asyncNotifs.turnByGame,
+      asyncNotifs.yourTurnCount,
+      socialNotifs.pendingFriendRequests,
       socialNotifs.pendingAsyncInvites,
-    refresh,
-    refreshSocial: socialNotifs.refresh,
-  }
+      socialNotifs.refresh,
+      refresh,
+    ],
+  )
 
   return (
     <AsyncNotificationsContext.Provider value={value}>{children}</AsyncNotificationsContext.Provider>

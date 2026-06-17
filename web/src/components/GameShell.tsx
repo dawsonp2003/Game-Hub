@@ -28,6 +28,7 @@ import GameHowToModal from './GameHowToModal'
 import InfoIcon from './InfoIcon'
 import RoomMenuButton from './RoomMenuButton'
 import RoomSuggestionChip from './RoomSuggestionChip'
+import LoadingSpinner from './LoadingSpinner'
 import './GameShell.css'
 
 type PlayLocationState = {
@@ -284,7 +285,7 @@ export default function GameShell({ game }: GameShellProps) {
         )}
 
         {asyncLoading && mode === 'async' && (
-          <p className="game-shell__loading">Loading saved game…</p>
+          <LoadingSpinner label="Loading saved game…" className="loading-spinner--panel" />
         )}
 
         {showResumePrompt && (
@@ -297,7 +298,7 @@ export default function GameShell({ game }: GameShellProps) {
         )}
 
         {readyToPlay && (
-          <Suspense fallback={<p className="game-shell__loading">Loading game…</p>}>
+          <Suspense fallback={<LoadingSpinner label="Loading game…" className="loading-spinner--panel" />}>
             <GameComponent
               mode={mode}
               session={activeSession}
@@ -311,7 +312,9 @@ export default function GameShell({ game }: GameShellProps) {
           </Suspense>
         )}
 
-        {mode && !GameComponent && <p className="game-shell__loading">Loading game…</p>}
+        {mode && !GameComponent && (
+          <LoadingSpinner label="Loading game…" className="loading-spinner--panel" />
+        )}
       </main>
 
       {howToOpen && (

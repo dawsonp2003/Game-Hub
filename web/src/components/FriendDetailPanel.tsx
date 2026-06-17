@@ -6,6 +6,7 @@ import { inviteFriendToAsyncMatch } from '../lib/friends/invites'
 import type { Friend, FriendH2HGame } from '../lib/friends/types'
 import { ASYNC_GAME_IDS } from '../lib/multiplayer/types'
 import { getGameById } from '../games/registry'
+import LoadingSpinner from './LoadingSpinner'
 import './Friends.css'
 
 interface FriendDetailPanelProps {
@@ -93,6 +94,17 @@ export default function FriendDetailPanel({ friend, onBack, onChanged }: FriendD
   const memberSince = new Date(friend.friendsSince).toLocaleDateString()
   const asyncGames = [...ASYNC_GAME_IDS]
 
+  if (loading) {
+    return (
+      <div className="friends-detail">
+        <button type="button" className="friends-detail__back" onClick={onBack}>
+          ← Back
+        </button>
+        <LoadingSpinner label="Loading stats…" className="loading-spinner--tab" />
+      </div>
+    )
+  }
+
   return (
     <div className="friends-detail">
       <button type="button" className="friends-detail__back" onClick={onBack}>
@@ -105,9 +117,7 @@ export default function FriendDetailPanel({ friend, onBack, onChanged }: FriendD
 
       <section className="friends-detail__section">
         <h4 className="account-section__title">Head-to-head</h4>
-        {loading ? (
-          <p className="account-panel__subtitle">Loading…</p>
-        ) : overall && overall.totalGames > 0 ? (
+        {overall && overall.totalGames > 0 ? (
           <p className="friends-detail__overall">
             Overall: {overall.myWins}W – {overall.myLosses}L
             {overall.myDraws > 0 ? ` – ${overall.myDraws}D` : ''}

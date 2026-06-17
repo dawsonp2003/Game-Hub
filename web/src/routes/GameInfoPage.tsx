@@ -18,11 +18,14 @@ import {
   formatHistoryRow,
   type GameProfileData,
 } from '../lib/stats'
+import { parseAsyncCodeFromUrl } from '../lib/async/matches'
+import { peekPendingAsyncCode } from '../components/AsyncLinkJoiner'
 import GameCover from '../components/GameCover'
 import AsyncMatchPanel from '../components/AsyncMatchPanel'
 import AccountModal from '../components/AccountModal'
 import ComputerOptionsModal from '../components/ComputerOptionsModal'
 import SaveDataBanner from '../components/SaveDataBanner'
+import LoadingSpinner from '../components/LoadingSpinner'
 import type { ComputerOptions } from '../lib/computer-options'
 import {
   formatComputerOptionsSummary,
@@ -88,6 +91,13 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
   }, [game.id])
 
   useEffect(() => {
+    const inviteCode = parseAsyncCodeFromUrl() ?? peekPendingAsyncCode()
+    if (inviteCode && supportsAsync) {
+      setSelectedMode('async')
+    }
+  }, [game.id, supportsAsync])
+
+  useEffect(() => {
     if (!game.computerOptions) return
     setComputerOptions(
       resolveComputerOptions(game.computerOptions, loadSavedComputerOptions(game.id) ?? undefined),
@@ -101,7 +111,10 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
       setProfile(data)
       if (!favoriteApplied.current) {
         const favorite = gameModeFromFavorite(data.favoriteMode, game.modes) as GameMode | null
-        if ((preferAsync || hasAsyncTurn) && supportsAsync) {
+        const inviteCode = parseAsyncCodeFromUrl() ?? peekPendingAsyncCode()
+        if (inviteCode && supportsAsync) {
+          setSelectedMode('async')
+        } else if ((preferAsync || hasAsyncTurn) && supportsAsync) {
           setSelectedMode('async')
         } else {
           setSelectedMode(pickDefaultMode(game, favorite))
@@ -235,17 +248,17 @@ function RecentGamesPanel({
   onCreateAccount,
 }: {
   gameId: string
-  profile: GameProfileData | null
+  profile: GameProfileData
   showSaveBanner: boolean
   onCreateAccount: () => void
 }) {
-  const count = profile?.recent.length ?? 0
+  const count = profile.recent.length
 
   return (
     <details className="game-info__recent">
       <summary className="game-info__recent-summary">
         <span className="game-info__recent-summary-label">Recent games</span>
-        {profile !== null && count > 0 && (
+        {count > 0 && (
           <span className="game-info__recent-count">{count}</span>
         )}
       </summary>
@@ -253,9 +266,7 @@ function RecentGamesPanel({
         {showSaveBanner && (
           <SaveDataBanner compact onCreateAccount={onCreateAccount} />
         )}
-        {profile === null ? (
-          <p className="game-info__muted">Loading…</p>
-        ) : count === 0 ? (
+        {count === 0 ? (
           <p className="game-info__muted">Your last 20 sessions will show up here.</p>
         ) : (
           <div className="game-info__recent-table-wrap">
@@ -310,9 +321,13 @@ function GameInfoAside({
   onCreateAccount: () => void
   showSaveBanner: boolean
 }) {
+  if (profile === null) {
+    return <LoadingSpinner label="Loading stats…" className="loading-spinner--aside" />
+  }
+
   const modeLabel = modeDisplayLabel(selectedMode)
-  const modeEntries = profile ? sessionsForMode(profile.sessions, selectedMode) : []
-  const statItems = profile ? computeGameStatDisplay(game.id, modeEntries) : []
+  const modeEntries = sessionsForMode(profile.sessions, selectedMode)
+  const statItems = computeGameStatDisplay(game.id, modeEntries)
 
   return (
     <>
@@ -322,9 +337,7 @@ function GameInfoAside({
 
       <div className="game-info__stats">
         <h3 className="game-info__stats-title">Your stats in {modeLabel}</h3>
-        {profile === null ? (
-          <p className="game-info__muted">Loading…</p>
-        ) : statItems.length > 0 ? (
+        {statItems.length > 0 ? (
           <ul
             className={`game-info__stat-list${statItems.length > 2 ? ' game-info__stat-list--wide' : ''}`}
           >

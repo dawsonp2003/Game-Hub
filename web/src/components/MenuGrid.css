@@ -46,11 +46,6 @@
   padding-bottom: 0.5rem;
   margin-bottom: 1rem;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.menu-grid__filters::-webkit-scrollbar {
-  display: none;
 }
 
 .menu-grid__filter {

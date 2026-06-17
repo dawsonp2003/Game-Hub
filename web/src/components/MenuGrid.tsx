@@ -9,6 +9,7 @@ import GameCard from './GameCard'
 import RoomMenuButton from './RoomMenuButton'
 import RoomSuggestionChip from './RoomSuggestionChip'
 import AccountButton from './AccountButton'
+import LoadingSpinner from './LoadingSpinner'
 import './MenuGrid.css'
 
 const ALL = 'all' as const
@@ -123,9 +124,7 @@ export default function MenuGrid() {
 
       <div className="menu-grid__list">
         {playCounts === null ? (
-          <p className="menu-grid__loading" aria-live="polite">
-            Loading games…
-          </p>
+          <LoadingSpinner label="Loading games…" className="loading-spinner--panel loading-spinner--grid" />
         ) : (
           filtered.map((game) => <GameCard key={game.id} game={game} />)
         )}
