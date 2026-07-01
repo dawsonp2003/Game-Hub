@@ -1,6 +1,6 @@
 # Game Arcade
 
-A mobile-friendly PWA game collection you can add to your iPhone home screen. Single-player games run entirely in the browser (free, offline-capable). Multiplayer uses **WebRTC peer-to-peer** with a tiny signaling server—gameplay traffic does not go through the server after connect.
+A mobile-friendly PWA game collection you can add to your iPhone home screen. Single-player games run entirely in the browser (free, offline-capable). Live multiplayer uses a **WebSocket room server** to relay moves between friends (no peer-to-peer). Async online play uses Supabase saved matches.
 
 ## Live stack (designed to stay cheap)
 
@@ -14,7 +14,7 @@ A mobile-friendly PWA game collection you can add to your iPhone home screen. Si
 
 ```
 web/          React + Vite + TypeScript PWA
-server/       WebSocket signaling for WebRTC room codes
+server/       WebSocket room server (6-digit party codes + move relay)
 render.yaml   One-click Render blueprint
 ```
 
@@ -122,7 +122,7 @@ Work through these over time. Check off as we ship them.
 | Solo | Single player on device |
 | vs Computer | Local AI opponent |
 | Pass & Play | Two players, one device |
-| Remote | 6-digit room code, WebRTC P2P |
+| Remote | 6-digit room code, server-relayed live play |
 
 ## Stats & accounts
 

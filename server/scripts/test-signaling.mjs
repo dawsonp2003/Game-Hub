@@ -1,5 +1,5 @@
 /**
- * Quick signaling smoke test: host create-room → guest join-room
+ * Room server smoke test: create → join → relay game message
  * Run: node server/scripts/test-signaling.mjs (with server on :3001)
  */
 import WebSocket from 'ws'
@@ -14,6 +14,23 @@ function once(ws, type) {
       if (msg.type === type) {
         clearTimeout(timer)
         resolve(msg)
+      }
+      if (msg.type === 'error') {
+        clearTimeout(timer)
+        reject(new Error(msg.message))
+      }
+    })
+  })
+}
+
+function waitRelay(ws, expectedType) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Timeout waiting for relay')), 10000)
+    ws.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString())
+      if (msg.type === 'relay' && msg.payload?.type === expectedType) {
+        clearTimeout(timer)
+        resolve(msg.payload)
       }
       if (msg.type === 'error') {
         clearTimeout(timer)
@@ -49,7 +66,18 @@ const [joined, peerJoined] = await Promise.all([
 ])
 console.log('Guest joined:', joined.role)
 console.log('Host got peer-joined:', peerJoined.role)
-console.log('Signaling flow OK')
+
+const relayPromise = waitRelay(host, 'room:launch')
+guest.send(
+  JSON.stringify({
+    type: 'relay',
+    clientId: guestId,
+    payload: { type: 'room:launch', gameId: 'tic-tac-toe', gameName: 'Tic Tac Toe' },
+  }),
+)
+const relayed = await relayPromise
+console.log('Host received relay:', relayed.type, relayed.gameId)
+console.log('Room relay flow OK')
 
 host.close()
 guest.close()

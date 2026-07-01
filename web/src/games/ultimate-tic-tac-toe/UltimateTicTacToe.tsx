@@ -7,7 +7,10 @@ import { getComputerOptionString } from '../../lib/computer-options'
 import { firstPlayerFromAsyncMatch } from '../../lib/turn-order/async-opening'
 import {
   getNextTurnSlot,
+  getRemoteOpening,
+  nextRemoteOpening,
   prefetchTurnOrder,
+  rotateRemoteOpening,
   rotateTurnSlot,
   xFromSlot,
   type TurnSlot,
@@ -57,6 +60,9 @@ export default function UltimateTicTacToe({
       const slot = getNextTurnSlot(auth.user?.id, gameId, mode)
       openingSlotRef.current = slot
       return xFromSlot(slot)
+    }
+    if (mode === 'remote') {
+      return getRemoteOpening(gameId, room.roomCode)
     }
     return 'X'
   }
@@ -149,8 +155,11 @@ export default function UltimateTicTacToe({
         const slot = openingSlotRef.current ?? (firstPlayer === 'O' ? 'player2' : 'player1')
         rotateTurnSlot(auth.user?.id, gameId, mode, slot)
       }
+      if (isRemote) {
+        rotateRemoteOpening(gameId, room.roomCode, firstPlayer)
+      }
     },
-    [isAI, isNetworked, isAsync, session, mySymbol, mode, computerOptions, auth.user?.id, firstPlayer],
+    [isAI, isNetworked, isAsync, isRemote, session, mySymbol, mode, computerOptions, auth.user?.id, firstPlayer, gameId, room.roomCode],
   )
 
   const playMove = useCallback(
@@ -230,6 +239,8 @@ export default function UltimateTicTacToe({
       const slot = getNextTurnSlot(auth.user?.id, gameId, mode)
       openingSlotRef.current = slot
       first = xFromSlot(slot)
+    } else if (mode === 'remote') {
+      first = nextRemoteOpening(firstPlayer)
     } else {
       first = nextFirst(firstPlayer)
     }

@@ -4,6 +4,8 @@ import { WebSocketServer, type RawData, type WebSocket } from 'ws'
 const PORT = Number(process.env.PORT) || 3001
 const ROOM_TTL_MS = 30 * 60 * 1000
 const GRACE_MS = 60_000
+const RELAY_MAX_PER_SEC = 40
+const RELAY_MAX_BYTES = 8192
 
 interface Slot {
   clientId: string
@@ -22,6 +24,28 @@ interface Room {
 const rooms = new Map<string, Room>()
 const wsRoom = new WeakMap<WebSocket, string>()
 const wsClientId = new WeakMap<WebSocket, string>()
+const relayBuckets = new Map<string, { count: number; resetAt: number }>()
+
+function verifyClient(ws: WebSocket, clientId: string | undefined): boolean {
+  if (!clientId) return false
+  const bound = wsClientId.get(ws)
+  return bound === clientId
+}
+
+function allowRelay(clientId: string): boolean {
+  const now = Date.now()
+  let bucket = relayBuckets.get(clientId)
+  if (!bucket || now >= bucket.resetAt) {
+    bucket = { count: 0, resetAt: now + 1000 }
+    relayBuckets.set(clientId, bucket)
+  }
+  bucket.count++
+  return bucket.count <= RELAY_MAX_PER_SEC
+}
+
+function isValidRelayPayload(payload: unknown): payload is Record<string, unknown> {
+  return typeof payload === 'object' && payload !== null && !Array.isArray(payload)
+}
 
 function generateCode(): string {
   let code: string
@@ -149,6 +173,12 @@ function attachClient(ws: WebSocket): void {
   let intentionalLeave = false
 
   ws.on('message', (raw: RawData) => {
+    const rawText = raw.toString()
+    if (rawText.length > RELAY_MAX_BYTES + 512) {
+      send(ws, { type: 'error', message: 'Message too large' })
+      return
+    }
+
     let msg: {
       type: string
       code?: string
@@ -165,7 +195,7 @@ function attachClient(ws: WebSocket): void {
 
     const clientId = msg.clientId?.trim()
     const accountId = msg.accountId?.trim() || null
-    if (!clientId && msg.type !== 'signal') {
+    if (!clientId) {
       send(ws, { type: 'error', message: 'clientId required' })
       return
     }
@@ -260,6 +290,10 @@ function attachClient(ws: WebSocket): void {
         intentionalLeave = true
         const code = wsRoom.get(ws)
         if (!code) return
+        if (!verifyClient(ws, clientId)) {
+          send(ws, { type: 'error', message: 'clientId mismatch' })
+          return
+        }
         const room = rooms.get(code)
         if (!room) return
 
@@ -283,6 +317,10 @@ function attachClient(ws: WebSocket): void {
         intentionalLeave = true
         const code = wsRoom.get(ws)
         if (!code) return
+        if (!verifyClient(ws, clientId)) {
+          send(ws, { type: 'error', message: 'clientId mismatch' })
+          return
+        }
         const room = rooms.get(code)
         if (!room || room.host.ws !== ws) {
           send(ws, { type: 'error', message: 'Only the host can close the room' })
@@ -295,13 +333,36 @@ function attachClient(ws: WebSocket): void {
         break
       }
 
-      case 'signal': {
+      case 'relay': {
         const code = wsRoom.get(ws)
-        if (!code) return
+        if (!code) {
+          send(ws, { type: 'error', message: 'Not in a room' })
+          return
+        }
+        if (!verifyClient(ws, clientId)) {
+          send(ws, { type: 'error', message: 'clientId mismatch' })
+          return
+        }
+        if (!allowRelay(clientId!)) {
+          send(ws, { type: 'error', message: 'Sending too fast — slow down' })
+          return
+        }
+        if (!isValidRelayPayload(msg.payload)) {
+          send(ws, { type: 'error', message: 'Invalid relay payload' })
+          return
+        }
+        const payloadJson = JSON.stringify(msg.payload)
+        if (payloadJson.length > RELAY_MAX_BYTES) {
+          send(ws, { type: 'error', message: 'Relay payload too large' })
+          return
+        }
+
         const room = rooms.get(code)
         if (!room) return
         const peer = getPeer(room, ws)
-        if (peer) send(peer, { type: 'signal', payload: msg.payload })
+        if (!peer) return
+
+        send(peer, { type: 'relay', payload: msg.payload })
         break
       }
 
@@ -341,12 +402,12 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
 
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, service: 'game-arcade-signaling', rooms: rooms.size }))
+    res.end(JSON.stringify({ ok: true, service: 'game-arcade-room-server', rooms: rooms.size }))
     return
   }
 
   res.writeHead(200, { 'Content-Type': 'text/plain' })
-  res.end('Game Arcade signaling server\n')
+  res.end('Game Arcade room server\n')
 })
 
 const wss = new WebSocketServer({ server: httpServer })

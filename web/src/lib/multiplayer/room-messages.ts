@@ -1,4 +1,4 @@
-/** Room-level messages sent over the WebRTC data channel (prefix `room:`). */
+/** Room-level messages relayed through the room server (prefix `room:`). */
 export type RoomChannelMessage =
   | { type: 'room:launch'; gameId: string; gameName: string }
   | { type: 'room:suggest'; gameId: string; gameName: string }

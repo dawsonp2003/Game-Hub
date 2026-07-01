@@ -26,7 +26,7 @@ export const ASYNC_GAME_IDS = new Set([
   'word-chain',
 ])
 
-/** Live WebRTC room play (party) — includes async titles that also ship remote components. */
+/** Live online room play (party) — includes async titles that also ship remote components. */
 export function supportsRoomOnline(modes: GameMode[]): boolean {
   return modes.includes('remote') || modes.includes('async')
 }

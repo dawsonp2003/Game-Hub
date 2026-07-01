@@ -106,7 +106,7 @@ export type SignalingMessage =
   | { type: 'peer-disconnected'; role: string; reconnectUntil: number }
   | { type: 'room-closed'; reason: string }
   | { type: 'left-room' }
-  | { type: 'signal'; payload: unknown }
+  | { type: 'relay'; payload: unknown }
   | { type: 'error'; message: string }
 
 export class SignalingClient {
