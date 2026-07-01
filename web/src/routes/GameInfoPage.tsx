@@ -4,11 +4,12 @@ import { useAuth } from '../context/AuthContext'
 import { useAsyncNotificationsContext } from '../context/AsyncNotificationsContext'
 import type { GameDef } from '../games/types'
 import {
-  defaultOnlineMode,
   MODE_LABELS,
+  preferredOnlineMode,
   visibleModes,
   type GameMode,
 } from '../lib/multiplayer/types'
+import { useRoom } from '../context/RoomContext'
 import {
   loadGameProfile,
   modeDisplayLabel,
@@ -19,7 +20,6 @@ import {
   type GameProfileData,
 } from '../lib/stats'
 import { parseAsyncCodeFromUrl } from '../lib/async/matches'
-import { peekPendingAsyncCode } from '../components/AsyncLinkJoiner'
 import GameCover from '../components/GameCover'
 import AsyncMatchPanel from '../components/AsyncMatchPanel'
 import AccountModal from '../components/AccountModal'
@@ -39,11 +39,15 @@ interface GameInfoPageProps {
   game: GameDef
 }
 
-function pickDefaultMode(game: GameDef, favoriteMode: GameMode | null = null): GameMode {
-  const online = defaultOnlineMode(game.modes)
+function pickDefaultMode(
+  game: GameDef,
+  favoriteMode: GameMode | null = null,
+  inParty = false,
+): GameMode {
+  const online = preferredOnlineMode(game.modes, inParty)
   if (online) return online
   if (favoriteMode && game.modes.includes(favoriteMode)) return favoriteMode
-  return visibleModes(game.modes)[0]!
+  return visibleModes(game.modes, inParty)[0]!
 }
 
 type GameInfoLocationState = { preferAsync?: boolean }
@@ -53,10 +57,13 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
   const location = useLocation()
   const preferAsync = (location.state as GameInfoLocationState | null)?.preferAsync === true
   const auth = useAuth()
+  const room = useRoom()
+  const inParty = room.isInRoom
   const { turnByGame } = useAsyncNotificationsContext()
   const hasAsyncTurn = (turnByGame[game.id] ?? 0) > 0
-  const displayModes = visibleModes(game.modes)
+  const displayModes = visibleModes(game.modes, inParty)
   const supportsAsync = game.modes.includes('async')
+  const supportsRoomPlay = game.modes.includes('remote') || supportsAsync
   const [accountOpen, setAccountOpen] = useState(false)
 
   const [profile, setProfile] = useState<GameProfileData | null>(null)
@@ -70,7 +77,19 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
       : {},
   )
 
-  const asyncSelected = selectedMode === 'async' && supportsAsync
+  const asyncSelected = selectedMode === 'async' && supportsAsync && !inParty
+  const remoteSelected = selectedMode === 'remote' && supportsRoomPlay
+
+  useEffect(() => {
+    if (inParty && supportsRoomPlay) {
+      setSelectedMode((mode) => {
+        if (mode === 'async' || mode === 'remote') return 'remote'
+        return mode
+      })
+    } else {
+      setSelectedMode((mode) => (mode === 'remote' && supportsAsync ? 'async' : mode))
+    }
+  }, [inParty, supportsRoomPlay, supportsAsync])
 
   const computerOptionsSummary = useMemo(() => {
     if (!game.computerOptions) return ''
@@ -91,11 +110,11 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
   }, [game.id])
 
   useEffect(() => {
-    const inviteCode = parseAsyncCodeFromUrl() ?? peekPendingAsyncCode()
-    if (inviteCode && supportsAsync) {
+    const inviteCode = parseAsyncCodeFromUrl()
+    if (inviteCode && supportsAsync && !inParty) {
       setSelectedMode('async')
     }
-  }, [game.id, supportsAsync])
+  }, [game.id, supportsAsync, inParty])
 
   useEffect(() => {
     if (!game.computerOptions) return
@@ -111,13 +130,13 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
       setProfile(data)
       if (!favoriteApplied.current) {
         const favorite = gameModeFromFavorite(data.favoriteMode, game.modes) as GameMode | null
-        const inviteCode = parseAsyncCodeFromUrl() ?? peekPendingAsyncCode()
-        if (inviteCode && supportsAsync) {
+        const inviteCode = parseAsyncCodeFromUrl()
+        if (inviteCode && supportsAsync && !inParty) {
           setSelectedMode('async')
-        } else if ((preferAsync || hasAsyncTurn) && supportsAsync) {
+        } else if ((preferAsync || hasAsyncTurn) && supportsAsync && !inParty) {
           setSelectedMode('async')
         } else {
-          setSelectedMode(pickDefaultMode(game, favorite))
+          setSelectedMode(pickDefaultMode(game, favorite, inParty))
         }
         favoriteApplied.current = true
       }
@@ -125,7 +144,7 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
     return () => {
       active = false
     }
-  }, [game.id, game.modes, preferAsync, supportsAsync, hasAsyncTurn])
+  }, [game.id, game.modes, preferAsync, supportsAsync, hasAsyncTurn, inParty])
 
   const startPlay = (options?: ComputerOptions) => {
     navigate(`/play/${game.id}`, {
@@ -135,6 +154,16 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
 
   const handlePlay = () => {
     if (asyncSelected) return
+    if (inParty && remoteSelected && room.isPlayReady) {
+      if (room.role === 'host') {
+        room.launchGame(game.id)
+        return
+      }
+      if (room.role === 'guest') {
+        room.suggestGame(game.id)
+        return
+      }
+    }
     if (selectedMode === 'ai' && game.computerOptions) {
       startPlay(computerOptions)
       return
@@ -201,9 +230,21 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
           )}
 
           {!asyncSelected && (
-            <button type="button" className="btn game-info__play" onClick={handlePlay}>
-              Play
-            </button>
+            <>
+              {remoteSelected && !room.isPlayReady && (
+                <p className="game-info__muted">
+                  Connect with your friend in the party menu before playing online.
+                </p>
+              )}
+              <button
+                type="button"
+                className="btn game-info__play"
+                onClick={handlePlay}
+                disabled={remoteSelected && !room.isPlayReady}
+              >
+                Play
+              </button>
+            </>
           )}
 
           {asyncSelected && <AsyncMatchPanel gameId={game.id} onNeedSignIn={openAccount} />}

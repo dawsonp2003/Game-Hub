@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useRoom } from '../context/RoomContext'
+import { loadRoomPrefs } from '../lib/multiplayer/room'
 import { checkSignalingHealth, getSignalingUrl } from '../lib/multiplayer/signaling'
 import { parseRoomCodeFromSearch } from '../lib/multiplayer/room-link'
 import ShareRoomButton from './ShareRoomButton'
@@ -48,6 +49,7 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
 
   const isBusy = room.loading && room.pendingAction !== 'restore'
   const progressText = progressLabel(room.pendingAction, room.statusMessage)
+  const savedRoom = loadRoomPrefs()
 
   if (room.isInRoom) {
     return (
@@ -167,6 +169,17 @@ export default function RoomPanel({ onClose }: RoomPanelProps) {
       )}
 
       {room.error && <p className="room-panel__error">{room.error}</p>}
+
+      {savedRoom && !room.loading && (
+        <div className="room-panel__rejoin">
+          <p className="room-panel__hint">
+            You may still be in room <strong>{savedRoom.code}</strong> from this tab.
+          </p>
+          <button type="button" className="btn btn-secondary room-panel__btn" onClick={room.rejoinRoom}>
+            Rejoin room {savedRoom.code}
+          </button>
+        </div>
+      )}
 
       <button
         type="button"

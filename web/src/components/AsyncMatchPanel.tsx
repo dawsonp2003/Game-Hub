@@ -11,7 +11,6 @@ import SaveDataBanner from './SaveDataBanner'
 import LoadingSpinner from './LoadingSpinner'
 import AsyncCreateGameModal from './AsyncCreateGameModal'
 import AsyncJoinGameModal from './AsyncJoinGameModal'
-import { peekPendingAsyncCode } from './AsyncLinkJoiner'
 import AsyncMatchList from './AsyncMatchList'
 import './AsyncMatchPanel.css'
 
@@ -59,7 +58,7 @@ export default function AsyncMatchPanel({ gameId, onNeedSignIn }: AsyncMatchPane
   }, [refresh])
 
   useEffect(() => {
-    const code = parseAsyncCodeFromUrl() ?? peekPendingAsyncCode()
+    const code = parseAsyncCodeFromUrl()
     if (!code || auth.loading || !auth.user) return
     setJoinInitialCode(code)
     setJoinOpen(true)

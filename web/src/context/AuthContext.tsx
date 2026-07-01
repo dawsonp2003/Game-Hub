@@ -96,18 +96,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return
 
     let active = true
+    let bootstrapped = false
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // INITIAL_SESSION(null) can fire before anonymous sign-in finishes and wipe the user.
+      if (!bootstrapped && event === 'INITIAL_SESSION' && !session) return
+      applySession(session)
+      if (session) setSessionFailed(false)
+    })
 
     void (async () => {
       const session = await establishSession()
       if (!active) return
+      bootstrapped = true
       applySession(session)
       setSessionFailed(!session)
       setLoading(false)
     })()
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      applySession(session)
-    })
 
     function applySession(session: Session | null) {
       const nextUser = session?.user ?? null

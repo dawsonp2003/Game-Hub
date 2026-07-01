@@ -49,15 +49,16 @@ function slotVacant(slot: Slot): boolean {
   return Date.now() - slot.disconnectedAt > GRACE_MS
 }
 
-function isSlotOccupiedByAccount(slot: Slot, accountId: string, exceptClientId?: string): boolean {
-  if (!slot.accountId || slot.accountId !== accountId) return false
+/** Same permanent account connected live in this slot (grace-period holds do not count). */
+function isAccountLiveInSlot(slot: Slot, accountId: string, exceptClientId?: string): boolean {
+  if (!slot.accountId || slot.accountId !== accountId || !slot.ws) return false
   if (exceptClientId && slot.clientId === exceptClientId) return false
-  return !!slot.ws || !slotVacant(slot)
+  return true
 }
 
 function isAccountActiveInRoom(room: Room, accountId: string, exceptClientId?: string): boolean {
-  if (isSlotOccupiedByAccount(room.host, accountId, exceptClientId)) return true
-  if (room.guest && isSlotOccupiedByAccount(room.guest, accountId, exceptClientId)) return true
+  if (isAccountLiveInSlot(room.host, accountId, exceptClientId)) return true
+  if (room.guest && isAccountLiveInSlot(room.guest, accountId, exceptClientId)) return true
   return false
 }
 
@@ -82,11 +83,13 @@ function markDisconnected(room: Room, ws: WebSocket): 'host' | 'guest' | null {
   if (room.host.ws === ws) {
     room.host.ws = null
     room.host.disconnectedAt = Date.now()
+    room.host.accountId = null
     return 'host'
   }
   if (room.guest?.ws === ws) {
     room.guest.ws = null
     room.guest.disconnectedAt = Date.now()
+    room.guest.accountId = null
     return 'guest'
   }
   return null
@@ -171,7 +174,11 @@ function attachClient(ws: WebSocket): void {
       case 'create-room': {
         if (wsRoom.has(ws)) return
         if (accountId && isAccountActiveAnywhere(accountId)) {
-          send(ws, { type: 'error', message: 'This account is already in a room' })
+          send(ws, {
+            type: 'error',
+            message:
+              'This account is already connected in another tab or device. Leave that room first, then try again.',
+          })
           return
         }
         const code = generateCode()
@@ -201,7 +208,11 @@ function attachClient(ws: WebSocket): void {
         }
 
         if (accountId && isAccountActiveInRoom(room, accountId, clientId)) {
-          send(ws, { type: 'error', message: 'This account is already in the room' })
+          send(ws, {
+            type: 'error',
+            message:
+              'This account is already connected in this room from another tab. Close the other tab or leave there first.',
+          })
           return
         }
 
@@ -220,8 +231,12 @@ function attachClient(ws: WebSocket): void {
           break
         }
 
-        if (accountId && room.host.accountId === accountId) {
-          send(ws, { type: 'error', message: 'This account is already in the room' })
+        if (accountId && room.host.accountId === accountId && room.host.ws) {
+          send(ws, {
+            type: 'error',
+            message:
+              'This account is already connected as host in this room from another tab.',
+          })
           return
         }
 

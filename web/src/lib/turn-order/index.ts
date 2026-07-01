@@ -5,6 +5,11 @@ import { readTurnSlot, syncTurnSlotFromCloud, writeTurnSlot } from './sync'
 export type { TurnOrderMode, TurnSlot } from './types'
 export { firstPlayerFromAsyncMatch } from './async-opening'
 export {
+  getRemoteOpening,
+  nextRemoteOpening,
+  rotateRemoteOpening,
+} from './remote-opening'
+export {
   flipSlot,
   initialSetPhase,
   isTurnOrderMode,

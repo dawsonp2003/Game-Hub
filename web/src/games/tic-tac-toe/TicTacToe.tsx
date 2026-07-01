@@ -7,7 +7,10 @@ import { useGameCheckpoint } from '../../lib/checkpoint'
 import { firstPlayerFromAsyncMatch } from '../../lib/turn-order/async-opening'
 import {
   getNextTurnSlot,
+  getRemoteOpening,
+  nextRemoteOpening,
   prefetchTurnOrder,
+  rotateRemoteOpening,
   rotateTurnSlot,
   xFromSlot,
   type TurnSlot,
@@ -91,6 +94,9 @@ export default function TicTacToe({
       openingSlotRef.current = slot
       return xFromSlot(slot)
     }
+    if (mode === 'remote') {
+      return getRemoteOpening(gameId, room.roomCode)
+    }
     return 'X'
   }
 
@@ -172,26 +178,33 @@ export default function TicTacToe({
     broadcastSessionScore(sessionWins)
   }, [sessionWins, isRemote, session?.role, broadcastSessionScore])
 
-  const resetBoard = useCallback((explicitFirst?: Player) => {
-    roundScoredRef.current = false
-    const empty = Array(9).fill(null) as Cell[]
-    boardRef.current = empty
-    setFirstPlayer((prev) => {
-      let first = explicitFirst
-      if (first === undefined && (mode === 'ai' || mode === 'pass-and-play')) {
+  const resetBoard = useCallback(
+    (explicitFirst?: Player) => {
+      roundScoredRef.current = false
+      const empty = Array(9).fill(null) as Cell[]
+      boardRef.current = empty
+
+      let first: Player
+      if (explicitFirst !== undefined) {
+        first = explicitFirst
+      } else if (mode === 'ai' || mode === 'pass-and-play') {
         const slot = getNextTurnSlot(auth.user?.id, gameId, mode)
         openingSlotRef.current = slot
         first = xFromSlot(slot)
-      } else if (first === undefined) {
-        first = nextFirstPlayer(prev)
+      } else if (mode === 'remote') {
+        first = nextRemoteOpening(firstPlayer)
+      } else {
+        first = nextFirstPlayer(firstPlayer)
       }
+
+      setFirstPlayer(first)
       setCurrent(first)
-      return first
-    })
-    setBoard(empty)
-    setWinner(null)
-    startTime.current = Date.now()
-  }, [auth.user?.id, gameId, mode])
+      setBoard(empty)
+      setWinner(null)
+      startTime.current = Date.now()
+    },
+    [auth.user?.id, gameId, mode, firstPlayer],
+  )
 
   const canPlay = useCallback(() => {
     if (winner) return false
@@ -235,7 +248,10 @@ export default function TicTacToe({
             ? session.opponentUserId() ?? undefined
             : undefined,
       })
-      if (isRemote) recordSessionWin(w)
+      if (isRemote) {
+        recordSessionWin(w)
+        rotateRemoteOpening(gameId, room.roomCode, firstPlayer)
+      }
       if (mode === 'ai' || mode === 'pass-and-play') {
         const slot = openingSlotRef.current ?? (firstPlayer === 'O' ? 'player2' : 'player1')
         rotateTurnSlot(auth.user?.id, gameId, mode, slot)
@@ -243,7 +259,7 @@ export default function TicTacToe({
       onCheckpointClear?.()
       clearCheckpoint()
     },
-    [isAI, isNetworked, isAsync, session, recordSessionWin, mode, computerOptions, onCheckpointClear, clearCheckpoint, auth.user?.id, firstPlayer],
+    [isAI, isNetworked, isAsync, isRemote, session, recordSessionWin, mode, computerOptions, onCheckpointClear, clearCheckpoint, auth.user?.id, firstPlayer, gameId, room.roomCode],
   )
 
   const applyMove = useCallback(
@@ -311,17 +327,28 @@ export default function TicTacToe({
         return
       }
       session?.send(msg)
+      applyMove(index, player)
+      return
     }
 
     applyMove(index, current)
   }
 
   const reset = () => {
-    resetBoard()
-    if (isRemote && session) {
-      session.send({ type: 'ttt:reset', firstPlayer } satisfies TttMessage)
+    let first: Player
+    if (mode === 'ai' || mode === 'pass-and-play') {
+      const slot = getNextTurnSlot(auth.user?.id, gameId, mode)
+      openingSlotRef.current = slot
+      first = xFromSlot(slot)
+    } else if (mode === 'remote') {
+      first = nextRemoteOpening(firstPlayer)
+    } else {
+      first = nextFirstPlayer(firstPlayer)
     }
-    if (isAsync) return
+    resetBoard(first)
+    if (isRemote && session) {
+      session.send({ type: 'ttt:reset', firstPlayer: first } satisfies TttMessage)
+    }
   }
 
   const myWins = isRemote

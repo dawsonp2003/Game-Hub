@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { ensureAnonymousSession } from '../lib/auth/session'
 import {
   clearAsyncCodeFromUrl,
   joinAsyncMatchFromCode,
@@ -27,8 +28,8 @@ export function takePendingAsyncCode(): string | null {
   return code
 }
 
-function resolveJoinCode(): string | null {
-  return parseAsyncCodeFromUrl() ?? peekPendingAsyncCode()
+function clearPendingAsyncCode(): void {
+  sessionStorage.removeItem(PENDING_ASYNC_CODE_KEY)
 }
 
 /** Auto-join when the app opens with ?async=CODE in the URL. */
@@ -37,13 +38,23 @@ export default function AsyncLinkJoiner() {
   const navigate = useNavigate()
   const joiningRef = useRef(false)
 
+  // Drop stale invite codes left in sessionStorage when there is no active link.
   useEffect(() => {
-    const code = resolveJoinCode()
+    if (!parseAsyncCodeFromUrl()) {
+      clearPendingAsyncCode()
+    }
+  }, [])
+
+  useEffect(() => {
+    const code = parseAsyncCodeFromUrl()
     if (!code) return
     if (auth.loading) return
 
     if (!auth.user) {
       stashPendingAsyncCode(code)
+      if (!auth.sessionFailed) {
+        void ensureAnonymousSession()
+      }
       return
     }
 
@@ -53,21 +64,22 @@ export default function AsyncLinkJoiner() {
     void joinAsyncMatchFromCode(code)
       .then(({ matchId, gameId }) => {
         clearAsyncCodeFromUrl()
-        sessionStorage.removeItem(PENDING_ASYNC_CODE_KEY)
+        clearPendingAsyncCode()
         const game = getGameById(gameId)
         if (!game?.modes.includes('async')) {
-          navigate('/', { replace: true })
           return
         }
         navigate(`/play/${gameId}`, { state: { mode: 'async', matchId }, replace: true })
       })
-      .catch(() => {
-        navigate(`/`, { replace: true })
+      .catch((err) => {
+        console.warn('[async-link] join failed', err)
+        clearAsyncCodeFromUrl()
+        clearPendingAsyncCode()
       })
       .finally(() => {
         joiningRef.current = false
       })
-  }, [auth.user, auth.loading, navigate])
+  }, [auth.user, auth.loading, auth.sessionFailed, navigate])
 
   return null
 }

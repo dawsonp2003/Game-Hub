@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import { getGameById } from '../games/registry'
 import type { GameLaunch, GameSuggestion } from '../lib/multiplayer/room-messages'
 import { isRoomChannelMessage } from '../lib/multiplayer/room-messages'
+import { supportsRoomOnline } from '../lib/multiplayer/types'
 import type { ConnectionState, MultiplayerSession, SessionRole } from '../lib/multiplayer/session'
 import { RoomConnection, clearRoomPrefs, loadRoomPrefs, type RoomEvent } from '../lib/multiplayer/room'
 import { parseRoomCodeFromUrl, setRoomUrlParam } from '../lib/multiplayer/room-link'
@@ -35,6 +36,7 @@ export interface RoomContextValue {
   lastSuggested: GameSuggestion | null
   createRoom: () => Promise<void>
   joinRoom: (code: string) => Promise<void>
+  rejoinRoom: () => Promise<void>
   leaveRoom: () => void
   closeRoom: () => void
   launchGame: (gameId: string) => void
@@ -138,7 +140,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   )
 
   const replaceConnection = useCallback(() => {
-    connectionRef.current?.teardown()
+    connectionRef.current?.release()
     const conn = new RoomConnection()
     attachConnection(conn)
     return conn
@@ -215,6 +217,10 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   }, [roomCode])
 
   const createRoom = useCallback(async () => {
+    if (roomCode && status !== 'disconnected') {
+      setRoomPanelOpen(true)
+      return
+    }
     setPendingAction('create')
     setLoading(true)
     setError(null)
@@ -229,7 +235,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       setPendingAction(null)
       setStatusMessage('')
     }
-  }, [replaceConnection])
+  }, [replaceConnection, roomCode, status])
 
   const joinRoom = useCallback(
     async (code: string) => {
@@ -250,6 +256,12 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     },
     [replaceConnection],
   )
+
+  const rejoinRoom = useCallback(async () => {
+    const prefs = loadRoomPrefs()
+    if (!prefs) return
+    await joinRoom(prefs.code)
+  }, [joinRoom])
 
   const leaveRoom = useCallback(() => {
     connectionRef.current?.leaveRoom()
@@ -293,7 +305,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   const launchGame = useCallback(
     (gameId: string) => {
       const game = getGameById(gameId)
-      if (!game || roleRef.current !== 'host') return
+      if (!game || roleRef.current !== 'host' || !supportsRoomOnline(game.modes)) return
 
       session?.send({
         type: 'room:launch',
@@ -309,7 +321,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   const suggestGame = useCallback(
     (gameId: string) => {
       const game = getGameById(gameId)
-      if (!game || roleRef.current !== 'guest') return
+      if (!game || roleRef.current !== 'guest' || !supportsRoomOnline(game.modes)) return
 
       session?.send({ type: 'room:suggest', gameId, gameName: game.name })
       setLastSuggested({ gameId, gameName: game.name })
@@ -319,9 +331,8 @@ export function RoomProvider({ children }: { children: ReactNode }) {
 
   const acceptSuggestion = useCallback(() => {
     if (!suggestion || roleRef.current !== 'host') return
-    setSuggestion(null)
-    navigate(`/game/${suggestion.gameId}`)
-  }, [suggestion, navigate])
+    launchGame(suggestion.gameId)
+  }, [suggestion, launchGame])
 
   const dismissSuggestion = useCallback(() => {
     setSuggestion(null)
@@ -350,6 +361,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       lastSuggested,
       createRoom,
       joinRoom,
+      rejoinRoom,
       leaveRoom,
       closeRoom,
       launchGame,
@@ -375,6 +387,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       lastSuggested,
       createRoom,
       joinRoom,
+      rejoinRoom,
       leaveRoom,
       closeRoom,
       launchGame,

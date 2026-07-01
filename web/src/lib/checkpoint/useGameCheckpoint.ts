@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { getLocalPlayerId } from '../../lib/auth/local-player'
 import type { GameMode } from '../multiplayer/types'
 import {
   clearLocalCheckpoint,
@@ -36,6 +37,7 @@ export function useGameCheckpoint<T>({
   debouncedSave: () => void
 } {
   const auth = useAuth()
+  const localPlayerId = getLocalPlayerId(auth.user?.id)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const getStateRef = useRef(getState)
   const shouldSaveRef = useRef(shouldSave)
@@ -43,11 +45,10 @@ export function useGameCheckpoint<T>({
   shouldSaveRef.current = shouldSave
 
   const buildCheckpoint = useCallback((): GameCheckpoint | null => {
-    const userId = auth.user?.id
-    if (!userId || !enabled) return null
+    if (!enabled) return null
     if (shouldSaveRef.current && !shouldSaveRef.current()) return null
     return {
-      userId,
+      userId: localPlayerId,
       gameId,
       mode,
       state: getStateRef.current(),
@@ -56,7 +57,7 @@ export function useGameCheckpoint<T>({
       updatedAt: new Date().toISOString(),
       dirty: auth.isPermanent,
     }
-  }, [auth.user?.id, auth.isPermanent, enabled, gameId, mode, matchId, opponentUserId])
+  }, [localPlayerId, auth.isPermanent, enabled, gameId, mode, matchId, opponentUserId])
 
   const saveNow = useCallback(() => {
     const cp = buildCheckpoint()
@@ -76,9 +77,9 @@ export function useGameCheckpoint<T>({
   }, [saveNow])
 
   const debouncedSave = useCallback(() => {
-    if (!enabled || !auth.user) return
+    if (!enabled) return
     scheduleSave()
-  }, [auth.user, enabled, scheduleSave])
+  }, [enabled, scheduleSave])
 
   useEffect(() => {
     if (!enabled) return
@@ -97,14 +98,12 @@ export function useGameCheckpoint<T>({
   }, [enabled, saveNow])
 
   const clearCheckpoint = useCallback(() => {
-    const userId = auth.user?.id
-    if (!userId) return
     if (timerRef.current) clearTimeout(timerRef.current)
-    clearLocalCheckpoint(userId, gameId, mode)
-    if (auth.isPermanent) {
-      void deleteCheckpointFromCloud(userId, gameId, mode)
+    clearLocalCheckpoint(localPlayerId, gameId, mode)
+    if (auth.isPermanent && auth.user?.id) {
+      void deleteCheckpointFromCloud(auth.user.id, gameId, mode)
     }
-  }, [auth.isPermanent, auth.user?.id, gameId, mode])
+  }, [auth.isPermanent, auth.user?.id, localPlayerId, gameId, mode])
 
   return { clearCheckpoint, saveNow, debouncedSave }
 }

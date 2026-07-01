@@ -1,4 +1,5 @@
 import type { ConnectionState, MultiplayerSession, SessionRole } from './session'
+import { isAnonymousUser } from '../auth/anonymous'
 import { SignalingClient } from './signaling'
 import { supabase } from '../supabase/client'
 
@@ -44,11 +45,13 @@ export function getClientId(): string {
   return id
 }
 
-/** Signed-in Supabase user id, when accounts are enabled. */
+/** Permanent accounts only — anonymous guests use clientId for rooms. */
 export async function getAccountId(): Promise<string | null> {
   if (!supabase) return null
   const { data } = await supabase.auth.getSession()
-  return data.session?.user.id ?? null
+  const user = data.session?.user ?? null
+  if (!user || isAnonymousUser(user)) return null
+  return user.id
 }
 
 export function saveRoomPrefs(code: string, role: SessionRole): void {
@@ -90,6 +93,10 @@ export class RoomConnection {
   private signalingWired = false
   private connectTimeoutId: ReturnType<typeof setTimeout> | null = null
   private pendingCandidates: RTCIceCandidateInit[] = []
+  private pendingSignals: Array<{ sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit }> =
+    []
+  private inSignalingRoom = false
+  private webrtcStarting = false
 
   readonly session: MultiplayerSession
 
@@ -146,6 +153,37 @@ export class RoomConnection {
     this.pendingCandidates = []
   }
 
+  private async applySignalPayload(payload: {
+    sdp?: RTCSessionDescriptionInit
+    candidate?: RTCIceCandidateInit
+  }): Promise<void> {
+    if (!this.pc) return
+
+    if (payload.sdp) {
+      await this.pc.setRemoteDescription(payload.sdp)
+      await this.flushPendingCandidates()
+      if (payload.sdp.type === 'offer' && this.role === 'guest') {
+        const answer = await this.pc.createAnswer()
+        await this.pc.setLocalDescription(answer)
+        this.signaling.send({
+          type: 'signal',
+          payload: { sdp: { type: answer.type, sdp: answer.sdp } },
+        })
+      }
+    }
+    if (payload.candidate) {
+      await this.addRemoteCandidate(payload.candidate)
+    }
+  }
+
+  private async flushPendingSignals(): Promise<void> {
+    if (!this.pc) return
+    const pending = this.pendingSignals.splice(0)
+    for (const payload of pending) {
+      await this.applySignalPayload(payload)
+    }
+  }
+
   private async flushPendingCandidates(): Promise<void> {
     if (!this.pc?.remoteDescription) return
     const pending = this.pendingCandidates.splice(0)
@@ -200,7 +238,7 @@ export class RoomConnection {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
     pc.onicecandidate = (e) => {
       if (e.candidate) {
-        this.signaling.send({ type: 'signal', payload: { candidate: e.candidate } })
+        this.signaling.send({ type: 'signal', payload: { candidate: e.candidate.toJSON() } })
       }
     }
     pc.oniceconnectionstatechange = () => {
@@ -223,7 +261,10 @@ export class RoomConnection {
     try {
       const offer = await this.pc.createOffer()
       await this.pc.setLocalDescription(offer)
-      this.signaling.send({ type: 'signal', payload: { sdp: offer } })
+      this.signaling.send({
+        type: 'signal',
+        payload: { sdp: { type: offer.type, sdp: offer.sdp } },
+      })
     } finally {
       this.makingOffer = false
     }
@@ -237,19 +278,18 @@ export class RoomConnection {
       const msg = data as {
         payload?: { sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit }
       }
-      if (!this.pc || !msg.payload) return
+      if (!msg.payload) return
 
-      if (msg.payload.sdp) {
-        await this.pc.setRemoteDescription(msg.payload.sdp)
-        await this.flushPendingCandidates()
-        if (msg.payload.sdp.type === 'offer' && this.role === 'guest') {
-          const answer = await this.pc.createAnswer()
-          await this.pc.setLocalDescription(answer)
-          this.signaling.send({ type: 'signal', payload: { sdp: answer } })
-        }
+      if (!this.pc) {
+        this.pendingSignals.push(msg.payload)
+        return
       }
-      if (msg.payload.candidate) {
-        await this.addRemoteCandidate(msg.payload.candidate)
+
+      try {
+        await this.applySignalPayload(msg.payload)
+      } catch (e) {
+        const detail = e instanceof Error ? e.message : 'negotiation failed'
+        this.emit({ type: 'error', message: `Could not complete peer handshake (${detail}). Try leaving and rejoining the room.` })
       }
     })
 
@@ -262,6 +302,7 @@ export class RoomConnection {
       this.setState('signaling', 'Friend reconnected — connecting…')
       this.emit({ type: 'peer-back' })
       if (this.role === 'host') await this.startWebRTCAsHost()
+      else await this.startWebRTCAsGuest()
     })
 
     this.signaling.on('peer-present', async () => {
@@ -273,6 +314,7 @@ export class RoomConnection {
     this.signaling.on('peer-disconnected', (data) => {
       const msg = data as { role: string; reconnectUntil: number }
       this.closeWebRTC()
+      this.pendingSignals = []
       this.setState('peer-away', `Friend stepped away — can rejoin for ${Math.round((msg.reconnectUntil - Date.now()) / 1000)}s`)
       this.emit({ type: 'peer-away', until: msg.reconnectUntil })
     })
@@ -294,16 +336,30 @@ export class RoomConnection {
   }
 
   private async startWebRTCAsHost(): Promise<void> {
-    this.createPeer()
-    const ch = this.pc!.createDataChannel('game', { ordered: true })
-    this.setupChannel(ch)
-    this.armConnectTimeout()
-    await this.createOffer()
+    if (this.webrtcStarting) return
+    this.webrtcStarting = true
+    try {
+      this.createPeer()
+      const ch = this.pc!.createDataChannel('game', { ordered: true })
+      this.setupChannel(ch)
+      await this.flushPendingSignals()
+      this.armConnectTimeout()
+      await this.createOffer()
+    } finally {
+      this.webrtcStarting = false
+    }
   }
 
   private async startWebRTCAsGuest(): Promise<void> {
-    this.createPeer()
-    this.armConnectTimeout()
+    if (this.webrtcStarting) return
+    this.webrtcStarting = true
+    try {
+      this.createPeer()
+      await this.flushPendingSignals()
+      this.armConnectTimeout()
+    } finally {
+      this.webrtcStarting = false
+    }
   }
 
   private armConnectTimeout(): void {
@@ -364,6 +420,7 @@ export class RoomConnection {
 
     const pending = this.waitForSignalingEvent('room-created', (data) => {
       const { code } = data as { code: string; role: SessionRole }
+      this.inSignalingRoom = true
       saveRoomPrefs(code, 'host')
       this.setState('waiting', 'Waiting for a friend…')
       this.emit({ type: 'room-code', code, role: 'host' })
@@ -387,6 +444,7 @@ export class RoomConnection {
       const msg = data as { code: string; role: SessionRole; rejoin?: boolean }
       this.role = msg.role
       this.session.role = msg.role
+      this.inSignalingRoom = true
       saveRoomPrefs(msg.code, msg.role)
 
       if (msg.role === 'host') {
@@ -417,8 +475,14 @@ export class RoomConnection {
   }
 
   leaveRoom(): void {
-    if (this.signaling) {
+    this.release()
+  }
+
+  /** Notify the server before tearing down (e.g. when swapping connections). */
+  release(): void {
+    if (this.inSignalingRoom) {
       this.signaling.send({ type: 'leave-room', clientId: getClientId() })
+      this.inSignalingRoom = false
     }
     this.teardown()
   }
@@ -441,7 +505,9 @@ export class RoomConnection {
       clearTimeout(this.connectTimeoutId)
       this.connectTimeoutId = null
     }
+    this.inSignalingRoom = false
     this.closeWebRTC()
+    this.pendingSignals = []
     this.signaling.disconnect()
     this.signaling = new SignalingClient()
     this.signalingWired = false

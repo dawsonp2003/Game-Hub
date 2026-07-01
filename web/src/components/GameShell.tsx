@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { getLocalPlayerId } from '../lib/auth/local-player'
 import { useRoom } from '../context/RoomContext'
 import type { GameDef, GameProps } from '../games/types'
 import { useUnloadGuard } from '../hooks/useUnloadGuard'
@@ -18,6 +19,7 @@ import {
   loadLocalCheckpoint,
 } from '../lib/checkpoint'
 import type { GameMode } from '../lib/multiplayer/types'
+import { allowsRemotePlay } from '../lib/multiplayer/types'
 import { MODE_LABELS } from '../lib/multiplayer/types'
 import type { ComputerOptions } from '../lib/computer-options'
 import { resolveComputerOptions } from '../lib/computer-options'
@@ -69,11 +71,12 @@ export default function GameShell({ game }: GameShellProps) {
   const [resumeChoice, setResumeChoice] = useState<'pending' | 'continue' | 'new'>('pending')
   const [initialCheckpoint, setInitialCheckpoint] = useState<unknown>(undefined)
 
+  const localPlayerId = getLocalPlayerId(auth.user?.id)
+
   const checkpointEnabled =
     !!mode &&
     !!game.checkpointModes?.includes(mode) &&
     mode !== 'async' &&
-    !!auth.user &&
     !freshStart
 
   useUnloadGuard(auth.isPermanent && checkpointEnabled)
@@ -89,7 +92,7 @@ export default function GameShell({ game }: GameShellProps) {
   }, [game])
 
   useEffect(() => {
-    if (requestedMode === 'remote' && game.modes.includes('remote')) {
+    if (requestedMode === 'remote' && allowsRemotePlay(game.modes)) {
       if (!room.isPlayReady) {
         navigate(`/game/${game.id}`, { replace: true })
         return
@@ -136,22 +139,22 @@ export default function GameShell({ game }: GameShellProps) {
   ])
 
   useEffect(() => {
-    if (!checkpointEnabled || !mode || !auth.user) {
+    if (!checkpointEnabled || !mode) {
       setResumeChoice('continue')
       return
     }
     if (freshStart) {
-      clearLocalCheckpoint(auth.user.id, game.id, mode)
+      clearLocalCheckpoint(localPlayerId, game.id, mode)
       setResumeChoice('new')
       setInitialCheckpoint(undefined)
       return
     }
-    if (hasLocalCheckpoint(auth.user.id, game.id, mode)) {
+    if (hasLocalCheckpoint(localPlayerId, game.id, mode)) {
       setResumeChoice('pending')
     } else {
       setResumeChoice('continue')
     }
-  }, [checkpointEnabled, mode, auth.user, game.id, freshStart])
+  }, [checkpointEnabled, mode, localPlayerId, game.id, freshStart])
 
   useEffect(() => {
     if (mode !== 'async' || !requestedMatchId) {
@@ -224,25 +227,25 @@ export default function GameShell({ game }: GameShellProps) {
   }, [game.id, navigate, room.isInRoom, fromAccount])
 
   const handleContinueSaved = useCallback(() => {
-    if (!auth.user || !mode) return
-    const cp = loadLocalCheckpoint(auth.user.id, game.id, mode)
+    if (!mode) return
+    const cp = loadLocalCheckpoint(localPlayerId, game.id, mode)
     setInitialCheckpoint(cp?.state)
     setResumeChoice('continue')
-  }, [auth.user, game.id, mode])
+  }, [localPlayerId, game.id, mode])
 
   const handleStartNew = useCallback(() => {
-    if (auth.user && mode) {
-      clearLocalCheckpoint(auth.user.id, game.id, mode)
+    if (mode) {
+      clearLocalCheckpoint(localPlayerId, game.id, mode)
     }
     setInitialCheckpoint(undefined)
     setResumeChoice('new')
-  }, [auth.user, game.id, mode])
+  }, [localPlayerId, game.id, mode])
 
   const handleCheckpointClear = useCallback(() => {
-    if (auth.user && mode) {
-      clearLocalCheckpoint(auth.user.id, game.id, mode)
+    if (mode) {
+      clearLocalCheckpoint(localPlayerId, game.id, mode)
     }
-  }, [auth.user, game.id, mode])
+  }, [localPlayerId, game.id, mode])
 
   const showResumePrompt = checkpointEnabled && resumeChoice === 'pending' && mode
 

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useRoom } from '../context/RoomContext'
 import type { GameDef } from '../games/types'
 import { useAsyncNotificationsContext } from '../context/AsyncNotificationsContext'
+import { supportsRoomOnline } from '../lib/multiplayer/types'
 import './GameCard.css'
 
 interface GameCardProps {
@@ -12,10 +13,21 @@ export default function GameCard({ game }: GameCardProps) {
   const navigate = useNavigate()
   const room = useRoom()
   const { turnByGame } = useAsyncNotificationsContext()
-  const supportsRemote = game.modes.includes('remote')
+  const supportsRemote = supportsRoomOnline(game.modes)
   const asyncTurns = turnByGame[game.id] ?? 0
 
   const handleClick = () => {
+    if (inRoomMultiplayer && room.isPlayReady) {
+      if (room.role === 'host') {
+        room.launchGame(game.id)
+        return
+      }
+      if (room.role === 'guest') {
+        room.suggestGame(game.id)
+        return
+      }
+    }
+
     navigate(`/game/${game.id}`, {
       state: asyncTurns > 0 ? { preferAsync: true } : undefined,
     })
