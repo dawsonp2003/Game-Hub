@@ -7,6 +7,7 @@ import { hangman } from './hangman/meta'
 import { wordLadder } from './word-ladder/meta'
 import { wordChain } from './word-chain/meta'
 import { anagram } from './anagram/meta'
+import { tierList } from './tier-list/meta'
 
 export const GAMES: GameDef[] = [
   wordGuess,
@@ -17,6 +18,7 @@ export const GAMES: GameDef[] = [
   ticTacToe,
   ultimateTicTacToe,
   snake,
+  tierList,
 ]
 
 export function getGameById(id: string): GameDef | undefined {

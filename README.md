@@ -28,6 +28,8 @@ npm install
 npm run dev
 ```
 
+Optional: set `GEMINI_API_KEY` in the server environment to enable AI-generated tier list items (see [Tier List / Gemini](#tier-list--gemini) below). Set `SERPER_API_KEY` for Google Images card art. Without Gemini, prompt generation falls back to Wikipedia search.
+
 **Terminal 2 — web app**
 
 ```bash
@@ -102,6 +104,7 @@ Work through these over time. Check off as we ship them.
 ### Arcade & action
 
 - [x] Snake
+- [x] Tier List (prompt / preset / manual ranking)
 - [ ] Tetris
 - [ ] Space Invaders
 - [ ] Breakout
@@ -150,6 +153,22 @@ Supabase so stats follow them across devices.
 4. (Optional) In Auth settings, turn email confirmation on/off to taste.
 
 If the env vars are blank, the build runs guest-only and hides the account UI.
+
+## Tier List / Gemini
+
+The **Tier List** game can auto-generate items from a natural-language prompt (e.g. "Pokemon", "Mario characters"). Item **names** come from an LLM; **images** are found via Google Images search (with Wikipedia as fallback).
+
+### Setup (optional but recommended)
+
+1. Go to [Google AI Studio](https://aistudio.google.com/apikey) and create an API key (free tier available; no credit card required for low volume).
+2. Set the key on your **room server** (not the web app):
+   - **Local dev:** add `GEMINI_API_KEY=...` to `server/.env` (see `server/.env.example`). The server loads this file automatically on startup — restart `npm run dev` after changing it. You should see `Tier list LLM: enabled (gemini-2.5-flash-lite)` in the server console.
+   - **Render:** add `GEMINI_API_KEY` as an environment variable on the **game-arcade-signaling** web service, then redeploy.
+3. The server uses **Gemini 2.5 Flash-Lite** by default (~$0.04–0.10 per million input tokens). If that model is overloaded (Google returns 503), the server automatically retries and falls back to `gemini-2.0-flash-lite` then `gemini-2.0-flash`. Override with `GEMINI_MODELS` in `server/.env`.
+
+4. **Images (strongly recommended):** add `SERPER_API_KEY` from [serper.dev](https://serper.dev) (2,500 free Google Image searches). The LLM returns contextual search phrases like `Senior Researcher Dubois Project Hail Mary movie character` so you get film cast photos instead of unrelated Wikipedia portraits. Alternative: `BRAVE_SEARCH_API_KEY` from [Brave Search API](https://brave.com/search/api/). On startup you should see `Tier list images: enabled (serper)`. Without an image key, the app falls back to Wikipedia thumbnails only.
+
+If all Gemini models fail, the server returns an error and the client automatically falls back to Wikipedia search for the prompt.
 
 ### Data model
 

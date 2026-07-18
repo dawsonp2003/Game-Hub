@@ -1,11 +1,42 @@
+import { config } from 'dotenv'
+import { resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { createServer, type IncomingMessage, type ServerResponse } from 'http'
 import { WebSocketServer, type RawData, type WebSocket } from 'ws'
+import { getTierImageProvider, handleTierImages, validateTierImageProvider } from './tier-images.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+config({ path: resolve(__dirname, '../.env') })
 
 const PORT = Number(process.env.PORT) || 3001
 const ROOM_TTL_MS = 30 * 60 * 1000
 const GRACE_MS = 60_000
 const RELAY_MAX_PER_SEC = 40
 const RELAY_MAX_BYTES = 8192
+const TIER_API_MAX_PER_MIN = 10
+const TIER_PROMPT_MAX_LEN = 200
+const TIER_ITEMS_MAX = 60
+
+/** Tried in order when a model is overloaded (503) or rate-limited. */
+const GEMINI_MODELS = (
+  process.env.GEMINI_MODELS?.split(',').map((m) => m.trim()).filter(Boolean) ?? [
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash-lite',
+    'gemini-2.0-flash',
+  ]
+)
+
+const GEMINI_RETRYABLE = new Set([429, 500, 502, 503])
+const GEMINI_MAX_RETRIES = 3
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function getGeminiApiKey(): string | undefined {
+  const key = process.env.GEMINI_API_KEY?.trim()
+  return key || undefined
+}
 
 interface Slot {
   clientId: string
@@ -25,6 +56,7 @@ const rooms = new Map<string, Room>()
 const wsRoom = new WeakMap<WebSocket, string>()
 const wsClientId = new WeakMap<WebSocket, string>()
 const relayBuckets = new Map<string, { count: number; resetAt: number }>()
+const tierApiBuckets = new Map<string, { count: number; resetAt: number }>()
 
 function verifyClient(ws: WebSocket, clientId: string | undefined): boolean {
   if (!clientId) return false
@@ -41,6 +73,237 @@ function allowRelay(clientId: string): boolean {
   }
   bucket.count++
   return bucket.count <= RELAY_MAX_PER_SEC
+}
+
+function getClientIp(req: IncomingMessage): string {
+  const forwarded = req.headers['x-forwarded-for']
+  if (typeof forwarded === 'string') return forwarded.split(',')[0]!.trim()
+  return req.socket.remoteAddress ?? 'unknown'
+}
+
+function allowTierApi(ip: string): boolean {
+  const now = Date.now()
+  let bucket = tierApiBuckets.get(ip)
+  if (!bucket || now >= bucket.resetAt) {
+    bucket = { count: 0, resetAt: now + 60_000 }
+    tierApiBuckets.set(ip, bucket)
+  }
+  bucket.count++
+  return bucket.count <= TIER_API_MAX_PER_MIN
+}
+
+function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    let size = 0
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > maxBytes) {
+        reject(new Error('body too large'))
+        req.destroy()
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on('end', () => {
+      try {
+        const text = Buffer.concat(chunks).toString('utf8')
+        resolve(text ? JSON.parse(text) : {})
+      } catch {
+        reject(new Error('invalid json'))
+      }
+    })
+    req.on('error', reject)
+  })
+}
+
+interface TierItemResponse {
+  label: string
+  searchTerm: string
+  imageQuery: string
+  description: string
+}
+
+function buildGeminiRequestBody(prompt: string, max: number) {
+  return {
+    contents: [
+      {
+        parts: [
+          {
+            text: `Return a complete list of items from a provided topic; return individual rankable THINGS (characters, species, foods, movies, songs, etc.)
+
+Examples:
+- "Pokemon" → Pikachu, Charizard, Mewtwo, Bulbasaur, Eevee, Lucario, Gengar, … (individual Pokémon species)
+- "Mario characters" → Mario, Luigi, Peach, Bowser, Yoshi, Toad, …
+- "Harry Potter characters" → label "Harry Potter", imageQuery "Harry Potter Harry Potter film character"; label "Hermione Granger", imageQuery "Hermione Granger Harry Potter film character"
+- "Project Hail Mary characters" → label "Senior Researcher Dubois", imageQuery "Senior Researcher Dubois Project Hail Mary movie character"; label "Rocky", imageQuery "Rocky Project Hail Mary movie alien"
+- "superhero villains" → Joker, Thanos, Loki, Magneto, …
+
+Rules:
+- Return up to ${max} distinct, recognizable items fans would want to rank
+- "label": short display name shown on the card
+- "description": one concise sentence (maximum 30 words) identifying the item and explaining its role or significance within the user's topic. Do not include the label as a heading.
+- "imageQuery": a Google Images search phrase that finds a good picture of THIS specific item in the context of the user's topic. Always include the work/franchise/source when the name alone is ambiguous (e.g. book vs film character, common surname, generic title). Prefer queries that return character portraits, cast photos, or official artwork — NOT book covers, logos, or unrelated historical people.
+- "searchTerm": short Wikipedia-style name as a fallback only (e.g. "Pikachu", "Hermione Granger")
+- No duplicates; skip obscure entries when the topic is huge — pick well-known fan favorites
+- Never return list pages, disambiguation pages, or video-game-series articles
+
+User prompt: "${prompt}"`,
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        properties: {
+          items: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                label: { type: 'STRING' },
+                searchTerm: { type: 'STRING' },
+                imageQuery: { type: 'STRING' },
+                description: { type: 'STRING' },
+              },
+              required: ['label', 'imageQuery', 'description'],
+            },
+          },
+        },
+        required: ['items'],
+      },
+    },
+  }
+}
+
+function parseGeminiItems(text: string, max: number): TierItemResponse[] {
+  const parsed = JSON.parse(text) as { items?: TierItemResponse[] }
+  if (!Array.isArray(parsed.items)) throw new Error('invalid gemini schema')
+
+  return parsed.items
+    .filter((i) => typeof i.label === 'string' && i.label.trim())
+    .map((i) => ({
+      label: i.label.trim(),
+      searchTerm: (typeof i.searchTerm === 'string' ? i.searchTerm : i.label).trim(),
+      imageQuery: (
+        typeof i.imageQuery === 'string' && i.imageQuery.trim()
+          ? i.imageQuery
+          : typeof i.searchTerm === 'string' && i.searchTerm.trim()
+            ? i.searchTerm
+            : i.label
+      ).trim(),
+      description:
+        typeof i.description === 'string'
+          ? i.description.trim().split(/\s+/).slice(0, 30).join(' ')
+          : '',
+    }))
+    .slice(0, max)
+}
+
+async function callGeminiModel(
+  model: string,
+  apiKey: string,
+  prompt: string,
+  max: number,
+): Promise<TierItemResponse[]> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+  const body = buildGeminiRequestBody(prompt, max)
+
+  let lastError = 'unknown error'
+
+  for (let attempt = 1; attempt <= GEMINI_MAX_RETRIES; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        candidates?: { content?: { parts?: { text?: string }[] } }[]
+      }
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+      if (!text) throw new Error('empty gemini response')
+      return parseGeminiItems(text, max)
+    }
+
+    const errText = await res.text().catch(() => '')
+    lastError = `Gemini API error ${res.status}: ${errText.slice(0, 200)}`
+
+    if (GEMINI_RETRYABLE.has(res.status) && attempt < GEMINI_MAX_RETRIES) {
+      const delayMs = 600 * 2 ** (attempt - 1)
+      console.warn(`tier-items: ${model} ${res.status}, retry ${attempt}/${GEMINI_MAX_RETRIES} in ${delayMs}ms`)
+      await sleep(delayMs)
+      continue
+    }
+
+    throw new Error(lastError)
+  }
+
+  throw new Error(lastError)
+}
+
+async function generateTierItems(
+  prompt: string,
+  max: number,
+): Promise<{ items: TierItemResponse[]; model: string }> {
+  const apiKey = getGeminiApiKey()
+  if (!apiKey) throw new Error('no api key')
+
+  let lastError: Error | null = null
+
+  for (const model of GEMINI_MODELS) {
+    try {
+      const items = await callGeminiModel(model, apiKey, prompt, max)
+      return { items, model }
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error('unknown error')
+      console.warn(`tier-items: ${model} failed — ${lastError.message}`)
+    }
+  }
+
+  throw lastError ?? new Error('all Gemini models failed')
+}
+
+async function handleTierItems(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const ip = getClientIp(req)
+  if (!allowTierApi(ip)) {
+    res.writeHead(429, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: 'Rate limit exceeded' }))
+    return
+  }
+
+  if (!getGeminiApiKey()) {
+    res.writeHead(503, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: 'LLM not configured', fallback: true }))
+    return
+  }
+
+  try {
+    const body = (await readJsonBody(req, 4096)) as { prompt?: string; max?: number }
+    const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : ''
+    const max = Math.min(
+      TIER_ITEMS_MAX,
+      Math.max(1, typeof body.max === 'number' && Number.isFinite(body.max) ? Math.floor(body.max) : 30),
+    )
+
+    if (!prompt || prompt.length > TIER_PROMPT_MAX_LEN) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Invalid prompt' }))
+      return
+    }
+
+    const { items, model } = await generateTierItems(prompt, max)
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ items, source: 'llm', model }))
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'unknown error'
+    console.error('tier-items error:', message)
+    res.writeHead(502, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: 'Generation failed', fallback: true }))
+  }
 }
 
 function isValidRelayPayload(payload: unknown): payload is Record<string, unknown> {
@@ -391,7 +654,7 @@ function attachClient(ws: WebSocket): void {
 
 const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
   if (req.method === 'OPTIONS') {
@@ -402,7 +665,26 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
 
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, service: 'game-arcade-room-server', rooms: rooms.size }))
+    res.end(
+      JSON.stringify({
+        ok: true,
+        service: 'game-arcade-room-server',
+        rooms: rooms.size,
+        tierLlm: !!getGeminiApiKey(),
+        tierLlmModels: GEMINI_MODELS,
+        tierImages: getTierImageProvider(),
+      }),
+    )
+    return
+  }
+
+  if (req.method === 'POST' && req.url === '/api/tier-items') {
+    void handleTierItems(req, res)
+    return
+  }
+
+  if (req.method === 'POST' && req.url === '/api/tier-images') {
+    void handleTierImages(req, res, readJsonBody, () => allowTierApi(getClientIp(req)))
     return
   }
 
@@ -425,5 +707,29 @@ setInterval(() => {
 }, 60_000)
 
 httpServer.listen(PORT, () => {
+  const llm = getGeminiApiKey()
+  const images = getTierImageProvider()
   console.log(`Signaling server listening on port ${PORT}`)
+  console.log(
+    llm
+      ? `Tier list LLM: enabled (${GEMINI_MODELS.join(' → ')})`
+      : 'Tier list LLM: disabled — set GEMINI_API_KEY in server/.env',
+  )
+  console.log(
+    images !== 'none'
+      ? `Tier list images: enabled (${images})`
+      : getSerperApiKeyForLog()
+        ? 'Tier list images: SERPER_API_KEY set but not validated yet'
+        : 'Tier list images: disabled — set SERPER_API_KEY or BRAVE_SEARCH_API_KEY in server/.env',
+  )
+  void validateTierImageProvider().then(() => {
+    const after = getTierImageProvider()
+    if (after === 'none' && process.env.SERPER_API_KEY?.trim()) {
+      console.warn('Tier list images: falling back to Wikipedia only until SERPER_API_KEY is fixed')
+    }
+  })
 })
+
+function getSerperApiKeyForLog(): boolean {
+  return !!process.env.SERPER_API_KEY?.trim()
+}
