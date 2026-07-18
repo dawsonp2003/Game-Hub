@@ -61,6 +61,19 @@
   min-width: 200px;
 }
 
+.snake-game__overlay-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.snake-game__overlay-text {
+  max-width: 320px;
+  margin: -0.25rem 0 0.5rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  text-align: center;
+}
+
 .snake-game__controls {
   margin-top: 1rem;
   display: flex;
@@ -87,4 +100,9 @@
 
 .snake-game__pad:active {
   background: var(--accent);
+}
+
+.snake-game__pad:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }

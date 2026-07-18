@@ -44,12 +44,13 @@ export default function Snake({ onExit }: GameProps) {
   const [score, setScore] = useState(0)
   const [gameOver, setGameOver] = useState(false)
   const [paused, setPaused] = useState(false)
+  const [started, setStarted] = useState(false)
   const dirRef = useRef<Dir>('right')
   /** Queued heading applied once at the start of each tick. */
   const nextDirRef = useRef<Dir>('right')
   const snakeRef = useRef(snake)
   const scoreRef = useRef(0)
-  const startTime = useRef(Date.now())
+  const startTime = useRef(0)
   const gameId = 'snake'
 
   snakeRef.current = snake
@@ -70,7 +71,7 @@ export default function Snake({ onExit }: GameProps) {
   )
 
   const tick = useCallback(() => {
-    if (gameOver || paused) return
+    if (!started || gameOver || paused) return
 
     dirRef.current = nextDirRef.current
 
@@ -98,7 +99,7 @@ export default function Snake({ onExit }: GameProps) {
       }
       return newSnake
     })
-  }, [food, gameOver, paused, score, endGame])
+  }, [food, started, gameOver, paused, endGame])
 
   useEffect(() => {
     const id = setInterval(tick, TICK_MS)
@@ -107,16 +108,17 @@ export default function Snake({ onExit }: GameProps) {
 
   const setDirection = useCallback((d: Dir) => {
     const travel = dirRef.current
-    if (OPPOSITE[travel] === d) return
+    if (OPPOSITE[travel] === d) return false
 
     const head = snakeRef.current[0]
     const neck = snakeRef.current[1]
     if (head && neck) {
       const delta = DIR_DELTA[d]
-      if (head.x + delta.x === neck.x && head.y + delta.y === neck.y) return
+      if (head.x + delta.x === neck.x && head.y + delta.y === neck.y) return false
     }
 
     nextDirRef.current = d
+    return true
   }, [])
 
   useEffect(() => {
@@ -136,13 +138,22 @@ export default function Snake({ onExit }: GameProps) {
         e.preventDefault()
         setDirection(d)
       }
-      if (e.key === ' ') setPaused((p) => !p)
+      if (e.key === ' ') {
+        e.preventDefault()
+        if (e.repeat) return
+        if (!started && !gameOver) {
+          startTime.current = Date.now()
+          setStarted(true)
+        } else if (started && !gameOver) {
+          setPaused((p) => !p)
+        }
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [setDirection])
+  }, [setDirection, started, gameOver])
 
-  const reset = () => {
+  const reset = (startImmediately = false) => {
     setSnake([
       { x: 8, y: 8 },
       { x: 7, y: 8 },
@@ -154,7 +165,14 @@ export default function Snake({ onExit }: GameProps) {
     setScore(0)
     setGameOver(false)
     setPaused(false)
+    setStarted(startImmediately)
+    startTime.current = startImmediately ? Date.now() : 0
+  }
+
+  const startGame = () => {
     startTime.current = Date.now()
+    setPaused(false)
+    setStarted(true)
   }
 
   const cells: { x: number; y: number; type: 'snake' | 'head' | 'food' | 'empty' }[] = []
@@ -176,7 +194,12 @@ export default function Snake({ onExit }: GameProps) {
       <div className="snake-game__hud">
         <span>Score: {score}</span>
         <span>Best: {stats.getStats(gameId).bestScore ?? 0}</span>
-        <button type="button" className="btn-ghost" onClick={() => setPaused((p) => !p)}>
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={() => setPaused((p) => !p)}
+          disabled={!started || gameOver}
+        >
           {paused ? 'Resume' : 'Pause'}
         </button>
       </div>
@@ -193,10 +216,25 @@ export default function Snake({ onExit }: GameProps) {
         ))}
       </div>
 
+      {!started && !gameOver && (
+        <div className="snake-game__overlay">
+          <h2 className="snake-game__overlay-title">Ready to play?</h2>
+          <p className="snake-game__overlay-text">
+            Use arrow keys or WASD to steer. On mobile, use the joystick.
+          </p>
+          <button type="button" className="btn" onClick={startGame} autoFocus>
+            Start Game
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={onExit}>
+            Menu
+          </button>
+        </div>
+      )}
+
       {gameOver && (
         <div className="snake-game__overlay">
           <p>Game Over — Score: {score}</p>
-          <button type="button" className="btn" onClick={reset}>
+          <button type="button" className="btn" onClick={() => reset(true)}>
             Play Again
           </button>
           <button type="button" className="btn btn-secondary" onClick={onExit}>
@@ -206,20 +244,44 @@ export default function Snake({ onExit }: GameProps) {
       )}
 
       {isMobile ? (
-        <SnakeJoystick onDirection={setDirection} disabled={gameOver || paused} />
+        <SnakeJoystick onDirection={setDirection} disabled={!started || gameOver || paused} />
       ) : (
         <div className="snake-game__controls">
-          <button type="button" className="snake-game__pad" onClick={() => setDirection('up')} aria-label="Up">
+          <button
+            type="button"
+            className="snake-game__pad"
+            onClick={() => setDirection('up')}
+            aria-label="Up"
+            disabled={!started || gameOver || paused}
+          >
             ▲
           </button>
           <div className="snake-game__pad-row">
-            <button type="button" className="snake-game__pad" onClick={() => setDirection('left')} aria-label="Left">
+            <button
+              type="button"
+              className="snake-game__pad"
+              onClick={() => setDirection('left')}
+              aria-label="Left"
+              disabled={!started || gameOver || paused}
+            >
               ◀
             </button>
-            <button type="button" className="snake-game__pad" onClick={() => setDirection('down')} aria-label="Down">
+            <button
+              type="button"
+              className="snake-game__pad"
+              onClick={() => setDirection('down')}
+              aria-label="Down"
+              disabled={!started || gameOver || paused}
+            >
               ▼
             </button>
-            <button type="button" className="snake-game__pad" onClick={() => setDirection('right')} aria-label="Right">
+            <button
+              type="button"
+              className="snake-game__pad"
+              onClick={() => setDirection('right')}
+              aria-label="Right"
+              disabled={!started || gameOver || paused}
+            >
               ▶
             </button>
           </div>

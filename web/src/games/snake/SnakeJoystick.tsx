@@ -1,15 +1,16 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './SnakeJoystick.css'
 
 type Dir = 'up' | 'down' | 'left' | 'right'
 
 interface SnakeJoystickProps {
-  onDirection: (dir: Dir) => void
+  onDirection: (dir: Dir) => boolean
   disabled?: boolean
 }
 
 const DEAD_ZONE = 14
 const MAX_RADIUS = 44
+const DIRECTION_RETRY_MS = 70
 
 function offsetToDir(dx: number, dy: number): Dir | null {
   const dist = Math.hypot(dx, dy)
@@ -24,7 +25,15 @@ export default function SnakeJoystick({ onDirection, disabled }: SnakeJoystickPr
   const baseRef = useRef<HTMLDivElement>(null)
   const [knob, setKnob] = useState({ x: 0, y: 0 })
   const activeRef = useRef(false)
-  const lastDirRef = useRef<Dir | null>(null)
+  const desiredDirRef = useRef<Dir | null>(null)
+  const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopRetrying = useCallback(() => {
+    if (retryTimerRef.current) {
+      clearInterval(retryTimerRef.current)
+      retryTimerRef.current = null
+    }
+  }, [])
 
   const updateFromPointer = useCallback(
     (clientX: number, clientY: number) => {
@@ -47,12 +56,12 @@ export default function SnakeJoystick({ onDirection, disabled }: SnakeJoystickPr
       setKnob({ x: dx, y: dy })
 
       const dir = offsetToDir(dx, dy)
-      if (dir && dir !== lastDirRef.current) {
-        lastDirRef.current = dir
+      if (dir && dir !== desiredDirRef.current) {
+        desiredDirRef.current = dir
         onDirection(dir)
       }
       if (!dir) {
-        lastDirRef.current = null
+        desiredDirRef.current = null
       }
     },
     [disabled, onDirection],
@@ -60,9 +69,15 @@ export default function SnakeJoystick({ onDirection, disabled }: SnakeJoystickPr
 
   const resetKnob = useCallback(() => {
     activeRef.current = false
+    stopRetrying()
     setKnob({ x: 0, y: 0 })
-    lastDirRef.current = null
-  }, [])
+    desiredDirRef.current = null
+  }, [stopRetrying])
+
+  useEffect(() => {
+    if (disabled) resetKnob()
+    return stopRetrying
+  }, [disabled, resetKnob, stopRetrying])
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (disabled) return
@@ -70,6 +85,11 @@ export default function SnakeJoystick({ onDirection, disabled }: SnakeJoystickPr
     activeRef.current = true
     baseRef.current?.setPointerCapture(e.pointerId)
     updateFromPointer(e.clientX, e.clientY)
+    stopRetrying()
+    retryTimerRef.current = setInterval(() => {
+      const desired = desiredDirRef.current
+      if (activeRef.current && desired) onDirection(desired)
+    }, DIRECTION_RETRY_MS)
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
