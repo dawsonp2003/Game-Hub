@@ -10,7 +10,7 @@
 
 .menu-grid__header-row {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.5rem;
 }
@@ -25,7 +25,7 @@
 
 .menu-grid__title {
   margin: 0;
-  font-size: 1.75rem;
+  font-size: clamp(1.3rem, 5vw, 1.75rem);
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.2;

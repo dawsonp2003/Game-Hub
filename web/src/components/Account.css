@@ -40,6 +40,19 @@
   text-align: center;
 }
 
+.account-auth-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.account-auth-actions .btn {
+  min-height: 38px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
 .account-async {
   margin-bottom: 1.25rem;
 }

@@ -64,6 +64,7 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
   const displayModes = visibleModes(game.modes, inParty)
   const supportsAsync = game.modes.includes('async')
   const supportsRoomPlay = game.modes.includes('remote') || supportsAsync
+  const isSoloOnly = game.modes.length === 1 && game.modes[0] === 'single'
   const [accountOpen, setAccountOpen] = useState(false)
 
   const [profile, setProfile] = useState<GameProfileData | null>(null)
@@ -196,6 +197,13 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
           <h2 className="game-info__name">{game.name}</h2>
           <p className="game-info__desc">{game.description}</p>
 
+          {auth.isAnonymous && isSoloOnly && (
+            <SaveDataBanner
+              onCreateAccount={openAccount}
+              message="Your game stats and history are temporary on this device. Create an account to save them permanently to your profile."
+            />
+          )}
+
           <div className="game-info__howto">
             <h3 className="game-info__section-label">How to play</h3>
             <p className="game-info__howto-text">{game.howToPlay}</p>
@@ -255,8 +263,6 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
             game={game}
             selectedMode={selectedMode}
             profile={profile}
-            onCreateAccount={openAccount}
-            showSaveBanner={auth.isAnonymous}
           />
         </aside>
       </div>
@@ -285,13 +291,9 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
 function RecentGamesPanel({
   gameId,
   profile,
-  showSaveBanner,
-  onCreateAccount,
 }: {
   gameId: string
   profile: GameProfileData
-  showSaveBanner: boolean
-  onCreateAccount: () => void
 }) {
   const count = profile.recent.length
 
@@ -304,9 +306,6 @@ function RecentGamesPanel({
         )}
       </summary>
       <div className="game-info__recent-body">
-        {showSaveBanner && (
-          <SaveDataBanner compact onCreateAccount={onCreateAccount} />
-        )}
         {count === 0 ? (
           <p className="game-info__muted">Your last 20 sessions will show up here.</p>
         ) : (
@@ -353,14 +352,10 @@ function GameInfoAside({
   game,
   selectedMode,
   profile,
-  onCreateAccount,
-  showSaveBanner,
 }: {
   game: GameDef
   selectedMode: GameMode
   profile: GameProfileData | null
-  onCreateAccount: () => void
-  showSaveBanner: boolean
 }) {
   if (profile === null) {
     return <LoadingSpinner label="Loading stats…" className="loading-spinner--aside" />
@@ -373,8 +368,6 @@ function GameInfoAside({
   return (
     <>
       <GameCover game={game} />
-
-      {showSaveBanner && <SaveDataBanner onCreateAccount={onCreateAccount} />}
 
       <div className="game-info__stats">
         <h3 className="game-info__stats-title">Your stats in {modeLabel}</h3>
@@ -397,8 +390,6 @@ function GameInfoAside({
       <RecentGamesPanel
         gameId={game.id}
         profile={profile}
-        showSaveBanner={showSaveBanner}
-        onCreateAccount={onCreateAccount}
       />
     </>
   )

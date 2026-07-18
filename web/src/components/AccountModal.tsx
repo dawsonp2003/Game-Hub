@@ -25,12 +25,13 @@ import './Friends.css'
 
 interface AccountModalProps {
   onClose: () => void
+  initialMode?: Mode
 }
 
 type Mode = 'signin' | 'signup'
 type ProfileTab = 'profile' | 'friends' | 'turns'
 
-export default function AccountModal({ onClose }: AccountModalProps) {
+export default function AccountModal({ onClose, initialMode }: AccountModalProps) {
   const auth = useAuth()
 
   useEffect(() => {
@@ -50,15 +51,23 @@ export default function AccountModal({ onClose }: AccountModalProps) {
         aria-label="Close account panel"
       />
       <div className="account-modal__dialog" role="dialog" aria-modal="true" aria-label="Account">
-        {auth.user ? <ProfilePanel onClose={onClose} /> : <AuthPanel />}
+        {auth.isPermanent ? (
+          <ProfilePanel onClose={onClose} />
+        ) : (
+          <AuthPanel
+            initialMode={
+              initialMode ?? (auth.accountCreationRequested ? 'signup' : 'signin')
+            }
+          />
+        )}
       </div>
     </div>
   )
 }
 
-function AuthPanel() {
+function AuthPanel({ initialMode = 'signin' }: { initialMode?: Mode }) {
   const auth = useAuth()
-  const [mode, setMode] = useState<Mode>('signin')
+  const [mode, setMode] = useState<Mode>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
