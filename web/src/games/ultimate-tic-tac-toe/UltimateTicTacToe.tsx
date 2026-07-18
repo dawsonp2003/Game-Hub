@@ -4,6 +4,8 @@ import { useIsMobileViewport } from '../../hooks/usePinchPanZoom'
 import { useAuth } from '../../context/AuthContext'
 import { useRoom } from '../../context/RoomContext'
 import { getComputerOptionString } from '../../lib/computer-options'
+import type { ComputerOptions } from '../../lib/computer-options'
+import { useGameCheckpoint } from '../../lib/checkpoint'
 import { firstPlayerFromAsyncMatch } from '../../lib/turn-order/async-opening'
 import {
   getNextTurnSlot,
@@ -34,6 +36,14 @@ type UtttMessage =
   | { type: 'uttt:move'; board: number; cell: number; player: Player }
   | { type: 'uttt:reset'; firstPlayer: Player }
 
+interface UtttCheckpointState {
+  state: UtttState
+  firstPlayer: Player
+  lastMove: UtttMove | null
+  startedAt: number
+  computerOptions?: ComputerOptions
+}
+
 function nextFirst(current: Player): Player {
   return current === 'X' ? 'O' : 'X'
 }
@@ -43,15 +53,19 @@ export default function UltimateTicTacToe({
   session,
   peerAway = false,
   computerOptions,
+  initialCheckpoint,
+  onCheckpointClear,
   onExit,
 }: GameProps) {
   const gameId = 'ultimate-tic-tac-toe'
+  const restored = initialCheckpoint as UtttCheckpointState | undefined
   const auth = useAuth()
   const room = useRoom()
   const isMobile = useIsMobileViewport()
   const openingSlotRef = useRef<TurnSlot | null>(null)
 
   const resolveOpening = (): Player => {
+    if (restored?.firstPlayer) return restored.firstPlayer
     if (mode === 'async' && session instanceof AsyncMatchSession) {
       const match = session.getMatch()
       if (match) return firstPlayerFromAsyncMatch(match)
@@ -67,12 +81,22 @@ export default function UltimateTicTacToe({
     return 'X'
   }
 
-  const opening = resolveOpening()
-  const [firstPlayer, setFirstPlayer] = useState<Player>(opening)
-  const [state, setState] = useState<UtttState>(() => createInitialState(opening))
-  const [lastMove, setLastMove] = useState<UtttMove | null>(null)
+  const initialOpeningRef = useRef<Player | null>(null)
+  if (initialOpeningRef.current === null) {
+    initialOpeningRef.current = resolveOpening()
+  }
+  const opening = initialOpeningRef.current
+  const [firstPlayer, setFirstPlayer] = useState<Player>(
+    () => restored?.firstPlayer ?? opening,
+  )
+  const [state, setState] = useState<UtttState>(
+    () => restored?.state ?? createInitialState(opening),
+  )
+  const [lastMove, setLastMove] = useState<UtttMove | null>(
+    () => restored?.lastMove ?? null,
+  )
   const stateRef = useRef(state)
-  const startTime = useRef(Date.now())
+  const startTime = useRef(restored?.startedAt ?? Date.now())
 
   stateRef.current = state
 
@@ -91,6 +115,20 @@ export default function UltimateTicTacToe({
     () => parseUtttDifficulty(getComputerOptionString(computerOptions, 'difficulty', 'normal')),
     [computerOptions],
   )
+  const checkpointEnabled = (isAI || isPassAndPlay) && !state.macroWinner
+  const { clearCheckpoint, debouncedSave } = useGameCheckpoint<UtttCheckpointState>({
+    gameId,
+    mode,
+    enabled: checkpointEnabled,
+    getState: () => ({
+      state: stateRef.current,
+      firstPlayer,
+      lastMove,
+      startedAt: startTime.current,
+      computerOptions: isAI ? computerOptions : undefined,
+    }),
+    shouldSave: () => !stateRef.current.macroWinner,
+  })
 
   const mySymbol: Player = isNetworked && session?.role === 'guest' ? 'O' : 'X'
 
@@ -176,7 +214,13 @@ export default function UltimateTicTacToe({
         setState(next)
         setLastMove(move)
         if (next.macroWinner && !prev.macroWinner) {
+          if (isAI || isPassAndPlay) {
+            clearCheckpoint()
+            onCheckpointClear?.()
+          }
           recordEnd(next.macroWinner)
+        } else {
+          debouncedSave()
         }
       }
 
@@ -200,7 +244,17 @@ export default function UltimateTicTacToe({
       commit()
       session?.send(msg)
     },
-    [isNetworked, isAsync, session, recordEnd],
+    [
+      isNetworked,
+      isAsync,
+      isAI,
+      isPassAndPlay,
+      session,
+      clearCheckpoint,
+      onCheckpointClear,
+      recordEnd,
+      debouncedSave,
+    ],
   )
 
   useEffect(() => {
@@ -234,6 +288,10 @@ export default function UltimateTicTacToe({
   }, [isAI, state.current, state.macroWinner, playMove, aiDifficulty])
 
   const reset = () => {
+    if (isAI || isPassAndPlay) {
+      clearCheckpoint()
+      onCheckpointClear?.()
+    }
     let first: Player
     if (mode === 'ai' || mode === 'pass-and-play') {
       const slot = getNextTurnSlot(auth.user?.id, gameId, mode)

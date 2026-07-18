@@ -24,12 +24,24 @@
   justify-content: center;
 }
 
+.game-shell__heading {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
 .game-shell__title {
   margin: 0;
   font-size: 1.125rem;
   font-weight: 700;
-  flex: 1;
-  text-align: center;
+}
+
+.game-shell__mode {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
 }
 
 .game-shell__info {

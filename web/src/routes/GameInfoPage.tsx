@@ -97,6 +97,18 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
     return formatComputerOptionsSummary(game.computerOptions, computerOptions)
   }, [game.computerOptions, computerOptions])
 
+  const selectedModeSummary = useMemo(() => {
+    if (selectedMode === 'ai') {
+      const difficulty = computerOptionsSummary.replace(/^Difficulty:\s*/, '')
+      return difficulty ? `Computer (${difficulty})` : 'Computer'
+    }
+    if (selectedMode === 'pass-and-play') return 'Pass and Play'
+    if (selectedMode === 'async' || selectedMode === 'remote') {
+      return `Online (${auth.profile?.username ?? 'You'} vs Opponent)`
+    }
+    return MODE_LABELS[selectedMode]
+  }, [auth.profile?.username, computerOptionsSummary, selectedMode])
+
   const openAccount = () => {
     auth.openAccountCreation()
     setAccountOpen(true)
@@ -236,6 +248,10 @@ export default function GameInfoPage({ game }: GameInfoPageProps) {
               {computerOptionsSummary}
             </button>
           )}
+
+          <p className="game-info__selected-mode">
+            Game mode: <strong>{selectedModeSummary}</strong>
+          </p>
 
           {!asyncSelected && (
             <>

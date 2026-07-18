@@ -3,6 +3,7 @@ import './ContinueGamePrompt.css'
 interface ContinueGamePromptProps {
   gameName: string
   modeLabel: string
+  continueDetail?: string
   onContinue: () => void
   onNewGame: () => void
 }
@@ -10,6 +11,7 @@ interface ContinueGamePromptProps {
 export default function ContinueGamePrompt({
   gameName,
   modeLabel,
+  continueDetail,
   onContinue,
   onNewGame,
 }: ContinueGamePromptProps) {
@@ -22,11 +24,12 @@ export default function ContinueGamePrompt({
         You have a saved {modeLabel} game in progress on this device.
       </p>
       <div className="continue-prompt__actions">
-        <button type="button" className="btn" onClick={onContinue}>
-          Continue last game
+        <button type="button" className="btn continue-prompt__action" onClick={onContinue}>
+          <span>Continue Game</span>
+          {continueDetail && <small>{continueDetail}</small>}
         </button>
-        <button type="button" className="btn btn-secondary" onClick={onNewGame}>
-          Start new game
+        <button type="button" className="btn btn-secondary continue-prompt__action" onClick={onNewGame}>
+          <span>New Game</span>
         </button>
       </div>
     </div>

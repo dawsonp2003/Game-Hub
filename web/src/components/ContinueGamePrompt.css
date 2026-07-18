@@ -24,3 +24,16 @@
   flex-direction: column;
   gap: 0.5rem;
 }
+
+.continue-prompt__action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.continue-prompt__action small {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.75rem;
+  font-weight: 500;
+}

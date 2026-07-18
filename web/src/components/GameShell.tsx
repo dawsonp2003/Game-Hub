@@ -22,7 +22,10 @@ import type { GameMode } from '../lib/multiplayer/types'
 import { allowsRemotePlay } from '../lib/multiplayer/types'
 import { MODE_LABELS } from '../lib/multiplayer/types'
 import type { ComputerOptions } from '../lib/computer-options'
-import { resolveComputerOptions } from '../lib/computer-options'
+import {
+  formatComputerOptionsSummary,
+  resolveComputerOptions,
+} from '../lib/computer-options'
 import { createAsyncMatchSession } from '../lib/multiplayer/async-session'
 import { createLocalSession, type MultiplayerSession } from '../lib/multiplayer/session'
 import ContinueGamePrompt from './ContinueGamePrompt'
@@ -44,6 +47,13 @@ type PlayLocationState = {
 
 interface GameShellProps {
   game: GameDef
+}
+
+function checkpointComputerOptions(state: unknown): ComputerOptions | undefined {
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return undefined
+  const options = (state as { computerOptions?: unknown }).computerOptions
+  if (!options || typeof options !== 'object' || Array.isArray(options)) return undefined
+  return options as ComputerOptions
 }
 
 export default function GameShell({ game }: GameShellProps) {
@@ -70,14 +80,14 @@ export default function GameShell({ game }: GameShellProps) {
 
   const [resumeChoice, setResumeChoice] = useState<'pending' | 'continue' | 'new'>('pending')
   const [initialCheckpoint, setInitialCheckpoint] = useState<unknown>(undefined)
+  const [savedDifficulty, setSavedDifficulty] = useState<string | undefined>()
 
   const localPlayerId = getLocalPlayerId(auth.user?.id)
 
   const checkpointEnabled =
     !!mode &&
     !!game.checkpointModes?.includes(mode) &&
-    mode !== 'async' &&
-    !freshStart
+    mode !== 'async'
 
   useUnloadGuard(auth.isPermanent && checkpointEnabled)
 
@@ -140,6 +150,7 @@ export default function GameShell({ game }: GameShellProps) {
 
   useEffect(() => {
     if (!checkpointEnabled || !mode) {
+      setSavedDifficulty(undefined)
       setResumeChoice('continue')
       return
     }
@@ -147,14 +158,23 @@ export default function GameShell({ game }: GameShellProps) {
       clearLocalCheckpoint(localPlayerId, game.id, mode)
       setResumeChoice('new')
       setInitialCheckpoint(undefined)
+      setSavedDifficulty(undefined)
       return
     }
     if (hasLocalCheckpoint(localPlayerId, game.id, mode)) {
+      const checkpoint = loadLocalCheckpoint(localPlayerId, game.id, mode)
+      const savedOptions = checkpointComputerOptions(checkpoint?.state)
+      if (mode === 'ai' && game.computerOptions && savedOptions) {
+        setSavedDifficulty(formatComputerOptionsSummary(game.computerOptions, savedOptions))
+      } else {
+        setSavedDifficulty(undefined)
+      }
       setResumeChoice('pending')
     } else {
+      setSavedDifficulty(undefined)
       setResumeChoice('continue')
     }
-  }, [checkpointEnabled, mode, localPlayerId, game.id, freshStart])
+  }, [checkpointEnabled, mode, localPlayerId, game.id, game.computerOptions, freshStart])
 
   useEffect(() => {
     if (mode !== 'async' || !requestedMatchId) {
@@ -229,15 +249,20 @@ export default function GameShell({ game }: GameShellProps) {
   const handleContinueSaved = useCallback(() => {
     if (!mode) return
     const cp = loadLocalCheckpoint(localPlayerId, game.id, mode)
+    const savedOptions = checkpointComputerOptions(cp?.state)
+    if (mode === 'ai' && game.computerOptions && savedOptions) {
+      setComputerOptions(resolveComputerOptions(game.computerOptions, savedOptions))
+    }
     setInitialCheckpoint(cp?.state)
     setResumeChoice('continue')
-  }, [localPlayerId, game.id, mode])
+  }, [localPlayerId, game.id, game.computerOptions, mode])
 
   const handleStartNew = useCallback(() => {
     if (mode) {
       clearLocalCheckpoint(localPlayerId, game.id, mode)
     }
     setInitialCheckpoint(undefined)
+    setSavedDifficulty(undefined)
     setResumeChoice('new')
   }, [localPlayerId, game.id, mode])
 
@@ -248,6 +273,26 @@ export default function GameShell({ game }: GameShellProps) {
   }, [localPlayerId, game.id, mode])
 
   const showResumePrompt = checkpointEnabled && resumeChoice === 'pending' && mode
+
+  const activeModeLabel = useMemo(() => {
+    if (!mode) return ''
+    if (mode === 'ai') {
+      const difficulty =
+        game.computerOptions && computerOptions
+          ? formatComputerOptionsSummary(game.computerOptions, computerOptions).replace(
+              /^Difficulty:\s*/,
+              '',
+            )
+          : null
+      return difficulty ? `Computer (${difficulty})` : 'Computer'
+    }
+    if (mode === 'pass-and-play') return 'Pass and Play'
+    if (mode === 'remote' || mode === 'async') {
+      const player = auth.profile?.username ?? 'You'
+      return `Online (${player} vs Opponent)`
+    }
+    return MODE_LABELS[mode]
+  }, [auth.profile?.username, computerOptions, game.computerOptions, mode])
 
   const readyToPlay =
     mode &&
@@ -262,9 +307,12 @@ export default function GameShell({ game }: GameShellProps) {
         <button type="button" className="game-shell__back btn-ghost" onClick={handleBack} aria-label="Back">
           ←
         </button>
-        <h1 className="game-shell__title">
-          <span aria-hidden>{game.icon}</span> {game.name}
-        </h1>
+        <div className="game-shell__heading">
+          <h1 className="game-shell__title">
+            <span aria-hidden>{game.icon}</span> {game.name}
+          </h1>
+          {activeModeLabel && <span className="game-shell__mode">{activeModeLabel}</span>}
+        </div>
         <button
           type="button"
           className="game-shell__info"
@@ -294,7 +342,12 @@ export default function GameShell({ game }: GameShellProps) {
         {showResumePrompt && (
           <ContinueGamePrompt
             gameName={game.name}
-            modeLabel={MODE_LABELS[mode]}
+            modeLabel={
+              mode === 'ai' && savedDifficulty
+                ? `Computer (${savedDifficulty.replace(/^Difficulty:\s*/, '')})`
+                : MODE_LABELS[mode]
+            }
+            continueDetail={mode === 'ai' ? savedDifficulty : undefined}
             onContinue={handleContinueSaved}
             onNewGame={handleStartNew}
           />

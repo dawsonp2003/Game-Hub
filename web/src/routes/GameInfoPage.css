@@ -131,7 +131,7 @@
   display: block;
   width: 100%;
   max-width: 280px;
-  margin: 0.75rem 0 1.25rem;
+  margin: 0.75rem 0 0.5rem;
   padding: 0;
   border: none;
   background: none;
@@ -149,6 +149,17 @@
 .game-info__computer-settings:hover {
   color: var(--accent);
   text-decoration-color: currentColor;
+}
+
+.game-info__selected-mode {
+  margin: 0 0 0.85rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.game-info__selected-mode strong {
+  color: var(--text);
+  font-weight: 650;
 }
 
 .game-info__modes:has(+ .game-info__computer-settings) {
