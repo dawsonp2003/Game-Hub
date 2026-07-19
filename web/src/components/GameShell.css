@@ -12,10 +12,14 @@
   border-bottom: 1px solid var(--border);
   background: var(--bg-elevated);
   position: relative;
-  z-index: 20;
+  /* Stay above game loading/waiting overlays and the room overlay. */
+  z-index: 500;
 }
 
 .game-shell__back {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
   font-size: 1.5rem;
   min-width: 44px;
   min-height: 44px;
